@@ -1,60 +1,56 @@
-// services/accountService.js
-// Account logic layer — pure operations on account state.
-// This layer knows nothing about HTTP; it only reads/writes the store.
-
-const { accounts, transactions } = require('../data/store');
+const { accounts, transactions } = require("../data/store");
 
 /**
- * getAccount(id)
- * Looks up a single account by id.
- * Returns the account object, or null if no account exists with that id.
+ * Returns the account for the given id.
+ * Throws if the account does not exist — callers (transfer, splitBill)
+ * rely on this so that an invalid id is rejected during validation,
+ * before any balances are touched.
  */
 function getAccount(id) {
-  return accounts[id] || null;
+  const account = accounts[id];
+  if (!account) throw new Error(`Account not found: ${id}`);
+  return account;
 }
 
 /**
- * getAllAccounts()
- * Returns every account as a flat array (order not guaranteed).
+ * Non-throwing existence check, for when we want to test whether an
+ * account exists without raising an error.
+ */
+function accountExists(id) {
+  return Boolean(accounts[id]);
+}
+
+/**
+ * Returns an array of all accounts.
  */
 function getAllAccounts() {
   return Object.values(accounts);
 }
 
 /**
- * adjustBalance(id, amount)
- * Adds `amount` to the account's balance.
- *   - Positive amount  → credit (money coming in)
- *   - Negative amount  → debit  (money going out)
- * Throws an Error if the account doesn't exist.
- * Returns the new balance after adjustment.
- *
- * Note: validation (sufficient funds, etc.) belongs in the transaction
- * service — this function only updates state, it does not judge it.
+ * Adjusts an account's balance: positive `amount` credits, negative debits.
+ * Throws (via getAccount) if the account does not exist.
+ * Returns the updated account object.
  */
 function adjustBalance(id, amount) {
-  const account = accounts[id];
-  if (!account) {
-    throw new Error(`Account not found: ${id}`);
-  }
+  const account = getAccount(id);
   account.balance += amount;
-  return account.balance;
+  return account;
 }
 
 /**
- * getHistory(id)
- * Returns all transaction records that involve this account,
- * either as the sender (from) or the recipient (to).
- * Returns an empty array if the account exists but has no history.
- * Returns null if the account doesn't exist at all (lets the route send a 404).
+ * Returns all transactions involving this account, as sender or recipient.
+ * Throws if the account does not exist.
  */
 function getHistory(id) {
-  if (!accounts[id]) {
-    return null;
-  }
-  return transactions.filter(
-    (tx) => tx.from === id || tx.to === id
-  );
+  getAccount(id); // validate the account exists (throws if not)
+  return transactions.filter((txn) => txn.from === id || txn.to === id);
 }
 
-module.exports = { getAccount, getAllAccounts, adjustBalance, getHistory };
+module.exports = {
+  getAccount,
+  accountExists,
+  getAllAccounts,
+  adjustBalance,
+  getHistory,
+};
