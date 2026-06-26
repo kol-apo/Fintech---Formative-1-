@@ -1,10 +1,11 @@
 {
-  "name": "fintech---formative-1-",
+  "name": "momosim",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Mobile Money Payment Simulator",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "test": "jest --coverage"
   },
   "repository": {
     "type": "git",
@@ -19,5 +20,14 @@
   "homepage": "https://github.com/kol-apo/Fintech---Formative-1-#readme",
   "dependencies": {
     "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ]
   }
 }
