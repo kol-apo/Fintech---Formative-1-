@@ -1,0 +1,29 @@
+cat > .gitignore << 'EOF'
+# Dependencies
+node_modules/
+
+# Environment & secrets
+.env
+.env.local
+config.local.*
+*.pem
+*.key
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Build artifacts
+dist/
+build/
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+EOF
