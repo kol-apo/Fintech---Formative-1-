@@ -93,16 +93,17 @@ curl http://localhost:3000/api/transactions
 ```
 
 ## Project Structure
+
 ```
 Fintech---Formative-1-/
 ├── data/
-│   └── store.js          # In-memory accounts and transactions
+│   └── store.js               # In-memory accounts and transactions
 ├── services/
 │   ├── accountService.js      # getAccount, getAllAccounts, adjustBalance
 │   └── transactionService.js  # transfer, splitBill
 ├── routes/
-│   └── api.js            # Express route handlers
-├── server.js             # Entry point
+│   └── api.js                 # Express route handlers
+├── server.js                  # Entry point
 └── package.json
 ```
 
