@@ -1,69 +1,115 @@
 # MoMoSim — Mobile Money Payment Simulator
 
-*A lightweight simulation of mobile money transfers for the African market.*
+> A lightweight REST API that simulates mobile money transfers for the African market.
 
-## Problem Statement
+## African Context
 
-Across Africa, mobile money services like MTN MoMo and Airtel Money are the
-dominant payment rail, serving millions of people who are unbanked or far from
-physical banks. However, developers and students lack a safe, free environment
-to model and test how these transactions actually behave. MoMoSim simulates the
-core logic of a mobile money transfer — validation, debit, credit, and
-transaction records — without touching real money or telecom infrastructure.
+Across Africa, mobile money services like MTN MoMo and Airtel Money are the dominant payment rail, serving millions of people who are unbanked or far from physical banks. However, developers and students lack a safe, free environment to model and test how these transactions actually behave. MoMoSim simulates the core logic of a mobile money transfer — validation, debit, credit, and transaction records — without touching real money or telecom infrastructure.
 
-## Target Users
+## Team Members
 
+- Olubanjo Kolapo - Repo & Security
+- Sydney Wamalwa - Core Transaction Logic
+- Adepoju Kolade - Accounts & Data Layer
+- Adebayo Seyi - Project Planning / Board
+- Ofomi Hephzibah - Documentation & Split-Bill Feature
+
+## Project Overview
+
+MoMoSim is a Node.js/Express REST API that replicates the core behaviour of a mobile money platform. It maintains a set of user accounts with balances and processes payment requests through the same validation rules a real provider would apply — checking that the sender exists, the recipient exists, the amount is valid, and the sender has sufficient funds before executing any transfer.
+
+All transactions are recorded in an in-memory ledger with unique references, giving users a full audit trail of every debit and credit. The system is intentionally simple so that students and developers can read, modify, and test the logic without needing a real payment gateway or database.
+
+The project also includes a split-bill feature, which allows a single payer to divide a total amount equally across multiple recipients in one atomic operation. This mirrors real-world group-payment scenarios common in African social and business contexts — such as splitting a shared bill or distributing a group contribution.
+
+### Target Users
 - Developers and students learning how mobile money systems work
 - Fintech teams prototyping payment flows before integrating a real provider
-- Educators demonstrating transaction logic and edge cases
+- Educators demonstrating transaction logic and edge cases in a classroom setting
 
-## Core Features
-
-1. **User accounts** with balances
-2. **Send money** — submit a payment request that is validated and processed
-3. **Validation** — rejects insufficient balance, unknown recipients, invalid amounts
-4. **Transaction history** — view past transactions with references
-5. **Split bill** *(stretch goal)* — split one amount across multiple recipients
+### Core Features
+- Feature 1: **Account management** — create and query accounts with balances
+- Feature 2: **Send money** — validated, atomic single transfers between accounts
+- Feature 3: **Split bill** — divide a total amount equally across multiple recipients in one request
+- Feature 4: **Transaction history** — every transfer is logged with a unique reference and timestamp
+- Feature 5: **Validation** — rejects insufficient balance, unknown accounts, and invalid amounts before touching any data
 
 ## Technology Stack
 
-- **Runtime:** Node.js
-- **Framework:** Express
-- **Data storage:** [JSON file / SQLite — pick one]
-- **Testing:** [Jest / your choice]
+- **Backend**: Node.js / Express
+- **Frontend**: None (REST API only)
+- **Database**: In-memory store (plain JavaScript objects and arrays)
+- **Other**: CommonJS modules, no external frameworks beyond Express
 
 ## Getting Started
 
 ### Prerequisites
-- Node.js [version] and npm installed
+- Node.js 16+ and npm installed
 
-### Setup
+### Installation
+
+1. Clone the repository
 ```bash
-git clone [your-repo-url]
-cd momosim
+git clone https://github.com/kol-apo/Fintech---Formative-1-.git
+cd Fintech---Formative-1-
+```
+
+2. Install dependencies
+```bash
 npm install
-npm start
 ```
 
-The API will run at `http://localhost:[port]`.
-
-### Example: send a payment
+3. Run the application
 ```bash
-curl -X POST http://localhost:[port]/transactions \
-  -H "Content-Type: application/json" \
-  -d '{"from": "user1", "to": "user2", "amount": 500}'
+node server.js
 ```
 
-## Team
+The API will be available at `http://localhost:3000`.
 
-| Name | Role |
-|------|------|
-| Olubanjo Kolpo | Repo & Security |
-| Sydney Wamalwa | Core Transaction Logic |
-| Adepoju Kolade| Accounts & Data Layer |
-| Adebayo Seyi | Project Planning / Board |
-| Ofomi Hephzibah | Documentation & Split-Bill Feature |
+### Usage
+
+**Transfer money between two accounts**
+```bash
+curl -X POST http://localhost:3000/api/transfer \
+  -H "Content-Type: application/json" \
+  -d '{"from": "user_001", "to": "user_002", "amount": 500}'
+```
+
+**Split a bill across multiple recipients**
+```bash
+curl -X POST http://localhost:3000/api/split \
+  -H "Content-Type: application/json" \
+  -d '{"from": "user_001", "recipients": ["user_002", "user_003", "user_004"], "totalAmount": 300}'
+```
+
+**View all accounts**
+```bash
+curl http://localhost:3000/api/accounts
+```
+
+**View transaction history**
+```bash
+curl http://localhost:3000/api/transactions
+```
+
+## Project Structure
+```
+Fintech---Formative-1-/
+├── data/
+│   └── store.js          # In-memory accounts and transactions
+├── services/
+│   ├── accountService.js      # getAccount, getAllAccounts, adjustBalance
+│   └── transactionService.js  # transfer, splitBill
+├── routes/
+│   └── api.js            # Express route handlers
+├── server.js             # Entry point
+└── package.json
+```
+
+## Links
+
+- [Project Board](https://github.com/kol-apo/Fintech---Formative-1-/projects)
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file.
+MIT License
