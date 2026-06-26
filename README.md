@@ -109,6 +109,9 @@ Fintech---Formative-1-/
 
 - [Project Board](https://github.com/kol-apo/Fintech---Formative-1-/projects)
 
+## Task Sheets
+https://docs.google.com/spreadsheets/d/1vvY5NJ8Aj2NM7L4KviNWLulCJvoscEkdLuV4_2ArjZM/edit?usp=sharing
+
 ## License
 
 MIT License
