@@ -1,0 +1,32 @@
+# Dependencies — these get reinstalled fresh inside the container,
+# so copying them in is pointless and slow
+node_modules/
+npm-debug.log*
+
+# Git internals — not needed to run the app
+.git/
+.gitignore
+
+# Environment & secrets — NEVER bake these into an image
+.env
+.env.local
+*.pem
+*.key
+
+# Tests & CI config — not needed in the running container
+tests/
+.github/
+
+# Docs & local files
+README.md
+*.md
+
+# Editor / OS junk
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
