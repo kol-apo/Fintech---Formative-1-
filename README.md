@@ -28,7 +28,7 @@ The project also includes a split-bill feature, which allows a single payer to d
 - Educators demonstrating transaction logic and edge cases in a classroom setting
 
 ### Core Features
-- Feature 1: **Account management** — query accounts and balances
+- Feature 1: **Account management** — create and query accounts with balances
 - Feature 2: **Send money** — validated, atomic single transfers between accounts
 - Feature 3: **Split bill** — divide a total amount equally across multiple recipients in one request
 - Feature 4: **Transaction history** — every transfer is logged with a unique reference and timestamp
@@ -44,7 +44,7 @@ The project also includes a split-bill feature, which allows a single payer to d
 ## Getting Started
 
 ### Prerequisites
-- Node.js 16+ and npm
+- Node.js 16+ and npm installed
 
 ### Installation
 
@@ -90,6 +90,8 @@ To run in the background (detached mode):
 ```bash
 docker compose up -d
 ```
+
+The API will be available at `http://localhost:3000`.
 
 ### Usage
 
