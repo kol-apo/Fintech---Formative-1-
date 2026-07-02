@@ -64,6 +64,33 @@ npm install
 node server.js
 ```
 
+### Running with Docker Compose
+
+1. Make sure [Docker Desktop](https://www.docker.com/products/docker-desktop/) is installed and running
+
+2. Clone the repository (if not already done)
+```bash
+git clone https://github.com/kol-apo/Fintech---Formative-1-.git
+cd Fintech---Formative-1-
+```
+
+3. Start the application
+```bash
+docker compose up
+```
+
+The API will be available at `http://localhost:3000`.
+
+To stop the application:
+```bash
+docker compose down
+```
+
+To run in the background (detached mode):
+```bash
+docker compose up -d
+```
+
 ### Usage
 
 **Transfer money between two accounts**
