@@ -28,7 +28,7 @@ The project also includes a split-bill feature, which allows a single payer to d
 - Educators demonstrating transaction logic and edge cases in a classroom setting
 
 ### Core Features
-- Feature 1: **Account management** — query accounts and balances
+- Feature 1: **Account management** — create and query accounts with balances
 - Feature 2: **Send money** — validated, atomic single transfers between accounts
 - Feature 3: **Split bill** — divide a total amount equally across multiple recipients in one request
 - Feature 4: **Transaction history** — every transfer is logged with a unique reference and timestamp
@@ -44,7 +44,7 @@ The project also includes a split-bill feature, which allows a single payer to d
 ## Getting Started
 
 ### Prerequisites
-- Node.js 16+ and npm
+- Node.js 16+ and npm installed
 
 ### Installation
 
@@ -63,6 +63,35 @@ npm install
 ```bash
 node server.js
 ```
+
+### Running with Docker Compose
+
+1. Make sure [Docker Desktop](https://www.docker.com/products/docker-desktop/) is installed and running
+
+2. Clone the repository (if not already done)
+```bash
+git clone https://github.com/kol-apo/Fintech---Formative-1-.git
+cd Fintech---Formative-1-
+```
+
+3. Start the application
+```bash
+docker compose up
+```
+
+The API will be available at `http://localhost:3000`.
+
+To stop the application:
+```bash
+docker compose down
+```
+
+To run in the background (detached mode):
+```bash
+docker compose up -d
+```
+
+The API will be available at `http://localhost:3000`.
 
 ### Usage
 
@@ -108,6 +137,9 @@ Fintech---Formative-1-/
 ## Links
 
 - [Project Board](https://github.com/kol-apo/Fintech---Formative-1-/projects)
+
+## Task Sheets
+https://docs.google.com/spreadsheets/d/1vvY5NJ8Aj2NM7L4KviNWLulCJvoscEkdLuV4_2ArjZM/edit?usp=sharing
 
 ## License
 
