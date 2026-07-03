@@ -1,14 +1,17 @@
 name: CI
 
+# Runs on pushes to every branch EXCEPT main, and on pull requests
+# targeting main. Direct pushes to main don't re-run the pipeline —
+# code only lands there through a PR that already passed it.
 on:
   push:
-    branches: ["**"]
+    branches-ignore: [main]
   pull_request:
     branches: [main]
 
 jobs:
-  test:
-    name: Run Tests
+  lint-and-test:
+    name: Lint & Test (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
 
     defaults:
@@ -17,7 +20,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [18.x, 20.x]
+        node-version: [20.x, 22.x]
 
     steps:
       - name: Checkout repository
@@ -33,6 +36,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint
+        run: npm run lint
+
       - name: Run tests with coverage
         run: npm test
 
@@ -43,3 +49,22 @@ jobs:
           name: coverage-report
           path: momosim/coverage/
           retention-days: 7
+
+  docker-build:
+    name: Build Docker image
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t momosim:ci ./momosim
+
+      - name: Smoke-test the image
+        run: |
+          docker run -d --rm --name momosim-ci -p 3000:3000 momosim:ci
+          sleep 3
+          curl --fail http://localhost:3000/api/accounts
+          docker stop momosim-ci
