@@ -1,0 +1,11 @@
+services:
+  momosim:
+    build: ./momosim
+    image: momosim:latest
+    container_name: momosim
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+    # Data is in-memory, so a restart resets state — but keep the app up
+    restart: unless-stopped
