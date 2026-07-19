@@ -1,0 +1,26 @@
+# =============================================================================
+# Copy this file to terraform.tfvars and fill in your own values.
+# terraform.tfvars is gitignored — real values never get committed.
+# =============================================================================
+
+project_name = "momosim"
+environment  = "dev"
+aws_region   = "eu-west-1"
+
+# Which profile in ~/.aws/credentials holds the TEAM account's keys.
+# Keeps team credentials clearly separated from any personal AWS account.
+aws_profile = "momosim-team"
+
+vpc_cidr           = "10.0.0.0/16"
+public_subnet_cidr = "10.0.1.0/24"
+
+instance_type = "t3.micro"
+app_port      = 3000
+
+# REQUIRED — your own public IP with /32, so only you can SSH in.
+# Find it at https://checkip.amazonaws.com
+ssh_allowed_cidr = "203.0.113.10/32"
+
+# Path to the PUBLIC half of the key pair you generated with:
+#   ssh-keygen -t ed25519 -f ~/.ssh/momosim
+ssh_public_key_path = "~/.ssh/momosim.pub"
