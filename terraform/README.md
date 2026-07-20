@@ -95,6 +95,41 @@ Copy `ansible_inventory_line` into `../ansible/inventory.ini`, then run the
 playbook to install Docker and deploy the app. Re-print outputs any time with
 `terraform output` (or `terraform output -raw instance_public_ip` in scripts).
 
+## Variables reference
+
+| Name | Type | Default | Required | Description |
+|---|---|---|---|---|
+| `project_name` | string | `"momosim"` | no | Prefix for all resource names |
+| `environment` | string | `"dev"` | no | One of: dev, staging, prod |
+| `aws_region` | string | `"eu-west-1"` | no | AWS region to deploy into |
+| `aws_profile` | string | `"momosim-team"` | no | Named profile in ~/.aws/credentials |
+| `aws_access_key` | string | `null` | no | Team access key (use secrets file) |
+| `aws_secret_key` | string | `null` | no | Team secret key (use secrets file) |
+| `vpc_cidr` | string | `"10.0.0.0/16"` | no | CIDR block for the VPC |
+| `public_subnet_cidr` | string | `"10.0.1.0/24"` | no | CIDR for the public subnet |
+| `instance_type` | string | `"t3.micro"` | no | EC2 instance type |
+| `app_port` | number | `3000` | no | Port the MoMoSim container listens on |
+| `ssh_allowed_cidr` | string | — | **yes** | Your IP + /32 — never open to 0.0.0.0/0 |
+| `ssh_public_key_path` | string | `"~/.ssh/momosim.pub"` | no | Path to your SSH public key |
+
+## Outputs reference
+
+| Name | Description | Typical use |
+|---|---|---|
+| `vpc_id` | ID of the VPC | Cross-stack references |
+| `public_subnet_id` | ID of the public subnet | Cross-stack references |
+| `security_group_id` | ID of the app security group | Cross-stack references |
+| `instance_id` | EC2 instance ID | AWS console / debugging |
+| `instance_public_ip` | Public IP of the server | Ansible inventory |
+| `instance_public_dns` | Public DNS hostname | Stable alternative to IP |
+| `instance_private_ip` | Private IP inside the VPC | Internal service calls |
+| `vpc_cidr` | VPC CIDR block | Firewall rule references |
+| `region` | AWS region deployed into | CI scripts |
+| `environment` | dev / staging / prod | CI scripts / tagging |
+| `app_url` | Full URL to the running app | Smoke testing |
+| `ssh_command` | Ready-made SSH command | Quick server access |
+| `ansible_inventory_line` | Line to paste into inventory.ini | Ansible setup |
+
 ## Tearing it down
 
 The instance costs money while it exists (t3.micro is free-tier eligible, but
