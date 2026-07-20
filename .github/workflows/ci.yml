@@ -50,6 +50,36 @@ jobs:
           path: momosim/coverage/
           retention-days: 7
 
+  dependency-scan:
+    name: Dependency scan (npm audit)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: momosim
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+
+      # Visibility: print every advisory (all severities). Never blocks the
+      # build — this step is purely so findings are readable in the PR logs.
+      - name: Audit report (all severities, non-blocking)
+        run: npm audit
+        continue-on-error: true
+
+      # Gate: fail the pipeline on High or Critical advisories only.
+      # Moderate/low are surfaced above but don't block the team. The one
+      # known finding (js-yaml, moderate) is a transitive devDependency that
+      # is absent from the production image — tracked in SECURITY.md.
+      - name: Audit gate (fail on high or critical)
+        run: npm audit --audit-level=high
+
   docker-build:
     name: Build Docker image
     runs-on: ubuntu-latest
@@ -61,6 +91,22 @@ jobs:
 
       - name: Build image
         run: docker build -t momosim:ci ./momosim
+
+      # Scan the image we just built (still only in the local Docker daemon,
+      # not a registry) for known OS/library CVEs. Pinned to a fixed action
+      # version for reproducibility.
+      #   severity        -> only CRITICAL/HIGH are worth gating on
+      #   ignore-unfixed  -> don't fail on base-image CVEs that have no patch
+      #                      yet; we can't remediate those (see SECURITY.md)
+      #   exit-code 1     -> a qualifying finding actually fails the build
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: momosim:ci
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
 
       - name: Smoke-test the image
         run: |
