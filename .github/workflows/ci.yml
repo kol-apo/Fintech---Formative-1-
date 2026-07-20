@@ -107,6 +107,9 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: "1"
+          # Accepted, non-reachable base-image CVEs live here (with rationale).
+          # The gate still fails on any new/unlisted CRITICAL or HIGH.
+          trivyignores: .trivyignore
 
       - name: Smoke-test the image
         run: |

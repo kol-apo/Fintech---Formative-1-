@@ -1,0 +1,21 @@
+# Trivy vulnerability exceptions — MoMoSim container image
+# ---------------------------------------------------------------------------
+# Each CVE below is a consciously ACCEPTED risk, not an oversight.
+# Full rationale is documented in SECURITY.md. Summary:
+#
+# CVE-2026-29786 / CVE-2026-31802 — path-traversal issues in `node-tar`/`tar`
+# (installed 7.5.11). This `tar` is bundled inside the npm CLI that ships with
+# the node:20-alpine base image (found under usr/local/lib/node_modules/npm/).
+# It is NOT an application dependency: the app ships only `express` and its
+# transitive deps, all of which Trivy reports as 0 vulnerabilities, and
+# `npm audit` on our package-lock.json confirms nothing in this class.
+#
+# The production container's entrypoint is `node server.js`; it never invokes
+# npm or tar at runtime, so these archive-extraction issues are not reachable
+# in our deployed image. No fixed base image is available yet (these are 2026
+# CVEs). To be re-evaluated when node:20-alpine ships a patched npm.
+#
+# The gate remains meaningful: any NEW or unlisted CRITICAL/HIGH still fails
+# the build — only these two specific, non-reachable CVEs are suppressed.
+CVE-2026-29786
+CVE-2026-31802
