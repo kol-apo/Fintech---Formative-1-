@@ -147,7 +147,34 @@ container. Changed the original CI suggestion of a Node 18.x/20.x matrix to
 
 ### Adepoju Kolade — Accounts & Data Layer
 
-<!-- Paste your interaction blocks here -->
+### Interaction 1
+
+**Prompt given to Claude:**
+> I need to add missing outputs to terraform/outputs.tf 
+
+**Output received:**
+5 new output blocks referencing module.compute.public_dns, module.compute.private_ip, module.network.vpc_cidr, var.aws_region, and var.environment.
+
+**Changes made before using:**
+Used as-is.
+
+**Where it appears in the project:**
+`terraform/outputs.tf` — lines 46–69
+
+
+### Interaction 2
+
+**Prompt given to Claude:**
+> Add a variables reference table and outputs reference table to terraform/README.md.
+
+**Output received:**
+Two markdown tables — one listing all 12 variables with name, type, default, required, and description columns; one listing all 13 outputs with name, description, and typical use columns.
+
+**Changes made before using:**
+Inserted before the "Tearing it down" section.
+
+**Where it appears in the project:**
+`terraform/README.md` — Variables reference and Outputs reference sections.
 
 ---
 
