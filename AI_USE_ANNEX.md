@@ -111,7 +111,25 @@ Used as-is; section was appended to the existing README under Getting Started.
 
 ### Ofomi Hephzibah — Documentation & Split-Bill Feature
 
-<!-- Paste your interaction blocks here -->
+#### Interaction 1
+
+**Prompt given to Claude:**
+> What is the standard structure for an Ansible project README? Give me a blank 
+> markdown template with standard headings for prerequisites, inventory setup, 
+> and execution commands.
+
+**Output received:**
+A markdown template with standard headings and generic placeholder text for 
+Ansible documentation.
+
+**Changes made before using:**
+I used the structural headings but completely replaced the placeholder text to 
+write the specific instructions for our MoMoSim project. I manually documented 
+our exact `ansible-playbook` commands, the necessary Terraform outputs required 
+for the inventory, and the specific `curl` command to verify our deployment.
+
+**Where it appears in the project:**
+`ansible/README.md` — Ansible usage instructions.
 
 ---
 
