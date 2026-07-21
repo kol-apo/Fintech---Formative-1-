@@ -61,6 +61,40 @@ File path and brief description (e.g. `.github/workflows/ci.yml` — Trivy scan 
 
 <!-- Paste your interaction blocks here -->
 
+#### Interaction 1
+
+**Prompt given to Claude:**
+> Write the docker-compose.yml (one-command launch for MoMoSim, in-memory app so
+> likely a single service) and the CI pipeline (.github/workflows/ci.yml): run on
+> push to every branch except main, and on PRs targeting main; checkout → set up
+> Node → install deps → lint → test → build the Docker image. Fail loudly on any
+> step failure.
+
+**Output received:**
+A `momosim/Dockerfile` (node:20-alpine, cached `npm ci` layer, non-root `USER
+node`), a root-level `docker-compose.yml` (single `momosim` service, port 3000),
+an ESLint flat config (`momosim/eslint.config.js`) plus a `lint` script added to
+`package.json` so the CI lint step had something real to run, and an updated
+`.github/workflows/ci.yml` with `push.branches-ignore: [main]` +
+`pull_request.branches: [main]` triggers, a lint → test (Node 20.x/22.x matrix)
+job, and a second `docker-build` job that builds the image and curl-checks
+`/api/accounts` inside a running container.
+
+**Changes made before using:**
+Ran `npm run lint` and `npm test` locally and fixed two ESLint errors the
+generated config caught in `tests/transactionService.test.js` (empty
+`catch (_) {}` blocks used intentionally to assert no state change) by adding
+`allowEmptyCatch` and an ignore pattern for `_`, rather than changing the test
+file. Verified the full stack end-to-end with `docker compose up --build` and
+confirmed `/api/accounts` returned the seeded accounts from inside the
+container. Changed the original CI suggestion of a Node 18.x/20.x matrix to
+20.x/22.x after finding ESLint 10 no longer supports Node 18 (EOL since April
+2025).
+
+**Where it appears in the project:**
+`momosim/Dockerfile`, `docker-compose.yml`, `momosim/eslint.config.js`,
+`momosim/package.json` (lint script), `.github/workflows/ci.yml`.
+
 ---
 
 ### Adepoju Kolade — Accounts & Data Layer
