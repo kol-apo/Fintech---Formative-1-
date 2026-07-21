@@ -20,10 +20,6 @@ assignment. This includes:
 
 You do **not** need to record general background questions where you did not use
 the output directly in the project.
-
-
-
-
 ## Team Sections
 
 ### Olubanjo Kolapo — Repo & Security
