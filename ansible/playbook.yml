@@ -1,92 +1,79 @@
 ---
-- name: Deploy MoMoSim to AWS EC2
+- name: Configure Server and Deploy MoMoSim
   hosts: momosim
   become: true
 
   vars:
-    repo_url: https://github.com/kol-apo/Fintech---Formative-1-.git
-    app_dir: /opt/momosim
+    repo_url: "https://github.com/kol-apo/Fintech---Formative-1-.git"
+    app_dir: "/opt/momosim"
 
   tasks:
     - name: Install required system packages
       apt:
         name:
+          - git
           - apt-transport-https
           - ca-certificates
           - curl
-          - git
-          - ufw
         state: present
-        update_cache: true
-
-    - name: Add Docker GPG key
-      apt_key:
-        url: https://download.docker.com/linux/ubuntu/gpg
-        state: present
-
-    - name: Add Docker repository
-      apt_repository:
-        repo: deb https://download.docker.com/linux/ubuntu jammy stable
-        state: present
+        update_cache: yes
 
     - name: Install Docker
       apt:
-        name:
-          - docker-ce
-          - docker-ce-cli
-          - docker-compose-plugin
+        name: docker.io
         state: present
-        update_cache: true
 
-    - name: Start and enable Docker
-      systemd:
+    - name: Start and enable Docker service
+      service:
         name: docker
         state: started
-        enabled: true
+        enabled: yes
 
-    - name: Allow SSH through firewall
+    - name: Clone application repository
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ app_dir }}"
+        version: main
+        force: yes
+
+    - name: Run docker compose
+      command: docker compose up -d --build
+      args:
+        chdir: "{{ app_dir }}"
+
+    - name: UFW - Allow port 22 (SSH)
       ufw:
         rule: allow
-        port: "22"
+        port: '22'
         proto: tcp
 
-    - name: Allow app port through firewall
+    - name: UFW - Allow port 3000 (App)
       ufw:
         rule: allow
-        port: "3000"
+        port: '3000'
         proto: tcp
 
-    - name: Enable UFW firewall
+    - name: UFW - Enable firewall with default deny
       ufw:
         state: enabled
         policy: deny
 
-    - name: Harden SSH - disable root login
+    - name: Hardening - Disable root login
       lineinfile:
         path: /etc/ssh/sshd_config
-        regexp: "^PermitRootLogin"
-        line: "PermitRootLogin no"
-        state: present
+        regexp: '^#?PermitRootLogin'
+        line: 'PermitRootLogin no'
+      notify: Restart SSH
 
-    - name: Harden SSH - disable password authentication
+    - name: Hardening - Disable password authentication
       lineinfile:
         path: /etc/ssh/sshd_config
-        regexp: "^PasswordAuthentication"
-        line: "PasswordAuthentication no"
-        state: present
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+      notify: Restart SSH
 
-    - name: Restart SSH to apply hardening
-      systemd:
+  handlers:
+    - name: Restart SSH
+      service:
         name: ssh
         state: restarted
-
-    - name: Clone MoMoSim repository
-      git:
-        repo: "{{ repo_url }}"
-        dest: "{{ app_dir }}"
-        force: true
-
-    - name: Build and start app with Docker Compose
-      command: docker compose up -d --build
-      args:
-        chdir: "{{ app_dir }}"

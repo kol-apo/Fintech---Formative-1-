@@ -1,0 +1,11 @@
+---
+# Shared vars for every host in the inventory.
+repo_url: https://github.com/kol-apo/Fintech---Formative-1-.git
+app_dir: /opt/momosim
+
+# Teammates' SSH public keys. Add a line here (and re-run the playbook)
+# to grant someone access — no manual "ssh + append authorized_keys" needed,
+# and the access list lives in version control instead of only on the server.
+team_ssh_keys:
+  - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPAJphFHPdcTMWSxf2ovQ+xYy10GjQCGYstM5c97fBc/ hephz@H3PHZY"
+  - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ55rl8K4enIkvQzWUvSXct7DCH0Dw62++bNuV1B+AG6 sydney@momosim"
