@@ -122,3 +122,31 @@ jobs:
           sleep 3
           curl --fail http://localhost:3000/api/accounts
           docker stop momosim-ci
+
+  iac-scan:
+    name: IaC scan (Checkov)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Static-analyse the Terraform in terraform/ for insecure infrastructure
+      # settings (open ingress, unencrypted volumes, missing logging, etc.).
+      #   directory/framework -> scan only our Terraform, nothing else
+      #   quiet               -> print only the checks that FAILED
+      #   soft_fail: true     -> REPORT, don't block. The Terraform is owned by
+      #                          the infrastructure workstream; this scan
+      #                          surfaces findings on every PR for review and
+      #                          for SECURITY.md, without blocking the team's
+      #                          merges. Findings are triaged with the infra
+      #                          owner and either fixed there or accepted with
+      #                          a documented rationale.
+      - name: Run Checkov against terraform/
+        uses: bridgecrewio/checkov-action@v12.3114.0
+        with:
+          directory: terraform/
+          framework: terraform
+          quiet: true
+          soft_fail: true
+          output_format: cli
