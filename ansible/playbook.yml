@@ -1,0 +1,76 @@
+---
+- name: Deploy MomoSim to AWS EC2
+  hosts: momosim
+  become: true
+
+  vars:
+    repo_url: https://github.com/kol-apo/Fintech---Formative-1-.git
+    app_dir: /opt/momosim
+
+  tasks:
+   #Docker installation
+   - name: install required system packages
+     apt:
+      name:
+        - apt-transport-https
+        - ca-certificates
+        - curl
+        - git
+        - ufw
+      state: present
+      update_cache: true
+          
+      - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: true
+
+    # --- Security hardening ---
+    - name: Allow SSH through firewall
+      ufw:
+        rule: allow
+        port: "22"
+        proto: tcp
+
+    - name: Allow app port through firewall
+      ufw:
+        rule: allow
+        port: "3000"
+        proto: tcp
+
+    - name: Enable UFW firewall
+      ufw:
+        state: enabled
+        policy: deny
+
+    - name: Harden SSH - disable root login
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^PermitRootLogin"
+        line: "PermitRootLogin no"
+        state: present
+
+    - name: Harden SSH - disable password authentication
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^PasswordAuthentication"
+        line: "PasswordAuthentication no"
+        state: present
+
+    - name: Restart SSH to apply hardening
+      systemd:
+        name: ssh
+        state: restarted
+
+    # --- App deployment ---
+    - name: Clone MoMoSim repository
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ app_dir }}"
+        force: true
+
+    - name: Build and start app with Docker Compose
+      command: docker compose up -d --build
+      args:
+        chdir: "{{ app_dir }}"
