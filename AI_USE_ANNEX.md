@@ -53,7 +53,55 @@ File path and brief description (e.g. `.github/workflows/ci.yml` — Trivy scan 
 
 ### Olubanjo Kolapo — Repo & Security
 
-<!-- Paste your interaction blocks here -->
+# AI Use Annex — DevSecOps Security Scanning (CI)
+
+## Summary of AI use
+
+Claude was used as a pair-programming assistant to help draft and troubleshoot
+the GitHub Actions configuration for three security scanners. I directed the
+work end to end: I set the goals, made the engineering and risk decisions,
+reviewed every change before it was committed, ran and verified each pipeline
+run, diagnosed the failures with real scan output, and integrated the result
+into the shared repository through branches and pull requests. Claude generated
+draft YAML and explained trade-offs; the decisions, verification, and
+integration were mine.
+
+## Prompts, outputs, and how I used/modified them
+
+| # | What I asked for | What Claude produced | What I did with it (review / decision / change) |
+|---|---|---|---|
+| 1 | Explain the task and plan the branch strategy and steps | A phased plan; flagged that I had to branch from `main` (not my stale branch) because the Dockerfile/Terraform lived there | I verified this against the repo myself and chose the branch accordingly |
+| 2 | Add dependency scanning (npm audit) to CI | A dedicated `dependency-scan` job with a non-blocking report step and a gating `--audit-level=high` step | I reviewed the severity choice, agreed `high` was the right gate for the team, and ran `npm audit` locally to confirm the findings |
+| 3 | Add container image scanning (Trivy) | A Trivy step inside the Docker build job, pinned to a fixed action version, gating on CRITICAL/HIGH | I confirmed the action version, decided the placement, and validated it on a real pipeline run |
+| 4 | Diagnose the failing checks | Identified base-image CVEs in bundled `tar`, and (after an advisory-DB update) two HIGH devDependency advisories | I supplied the real CI logs, decided the remediation strategy, and chose fix-vs-accept per finding |
+| 5 | Remediate the findings | Ran `npm audit fix` for the fixable dependency issues; switched the container scan to report-and-document for unfixable base-image CVEs | I decided to *fix* what we own and *accept/document* what we don't; I re-ran lint and tests to confirm nothing broke |
+| 6 | Add the third scan (Checkov for Terraform) | A report-only `iac-scan` job scoped to `terraform/` | I reviewed the Terraform first, decided report-mode was correct since infra is a teammate's area, and coordinated accordingly |
+
+## My own contributions and changes
+
+- **Set the direction and scope**, including the decision to add the third
+  (IaC) scan to reach the higher marking band.
+- **Made the risk decisions**: gate dependencies hard at `high`; fix the
+  fixable advisories via `npm audit fix`; run the container and IaC scans in
+  report-and-document mode because those findings sit in a base image and in
+  a teammate's Terraform that we don't unilaterally change.
+- **Verified everything on real runs**: I ran `npm audit`, lint, and the test
+  suite locally, and watched each check on the pull requests rather than
+  trusting the config blindly.
+- **Debugged a live failure** when the npm advisory database re-rated two
+  packages to HIGH mid-task, and drove it to a green pipeline.
+- **Handled all version control and integration myself**: created the
+  branches, made commits (including my own edits such as the README update),
+  pushed, opened the pull requests, and coordinated review and merge with
+  teammates.
+- **Reviewed and approved every AI-drafted change** before it entered the
+  repository; nothing was committed without my check.
+
+## Verification
+
+All three scanners are merged to `main` and run on every pull request. I
+confirmed the pipeline is green and that findings are captured for SECURITY.md.
+
 
 ---
 
