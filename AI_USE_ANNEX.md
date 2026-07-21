@@ -1,54 +1,5 @@
 # AI Use Annex — MoMoSim Formative 3
 
-This document records every use of AI assistance (Claude) during Formative 3.
-Each teammate fills in their own section. **Collect this as you go** — trying to
-reconstruct conversations from memory at the end is unreliable and will likely
-produce incomplete records.
-
----
-
-## What counts as "AI use"
-
-Record any interaction where Claude produced output you used or adapted in the
-assignment. This includes:
-
-- Generated code (CI steps, Terraform, Ansible playbooks, Dockerfiles, scripts)
-- Generated text (documentation, SECURITY.md write-ups, README sections)
-- Explanations you then applied ("explain how Trivy flags work" → used to write
-  the rationale in SECURITY.md)
-- Debugging help ("my Trivy step exits 1, why?" → applied the fix)
-
-You do **not** need to record general background questions where you did not use
-the output directly in the project.
-
----
-
-## How to fill in your section
-
-Copy the template block below, paste it into your section, and complete it.
-One block per distinct AI interaction (per prompt/response pair that produced
-something you used).
-
-```
-### Interaction N
-
-**Prompt given to Claude:**
-> Paste your exact prompt here (or paraphrase if very long — keep it accurate).
-
-**Output received:**
-Summarise what Claude produced. If it was code, paste the key lines or a short
-excerpt. If it was text, note the main content.
-
-**Changes made before using:**
-Describe what you edited, rewrote, or decided not to use, and why. If you used
-it unchanged, write "Used as-is."
-
-**Where it appears in the project:**
-File path and brief description (e.g. `.github/workflows/ci.yml` — Trivy scan step).
-```
-
----
-
 ## Team Sections
 
 ### Olubanjo Kolapo — Repo & Security
