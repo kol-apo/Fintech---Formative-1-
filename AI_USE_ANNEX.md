@@ -21,33 +21,8 @@ assignment. This includes:
 You do **not** need to record general background questions where you did not use
 the output directly in the project.
 
----
 
-## How to fill in your section
 
-Copy the template block below, paste it into your section, and complete it.
-One block per distinct AI interaction (per prompt/response pair that produced
-something you used).
-
-```
-### Interaction N
-
-**Prompt given to Claude:**
-> Paste your exact prompt here (or paraphrase if very long — keep it accurate).
-
-**Output received:**
-Summarise what Claude produced. If it was code, paste the key lines or a short
-excerpt. If it was text, note the main content.
-
-**Changes made before using:**
-Describe what you edited, rewrote, or decided not to use, and why. If you used
-it unchanged, write "Used as-is."
-
-**Where it appears in the project:**
-File path and brief description (e.g. `.github/workflows/ci.yml` — Trivy scan step).
-```
-
----
 
 ## Team Sections
 
