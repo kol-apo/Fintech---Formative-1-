@@ -1,5 +1,5 @@
 ---
-- name: Deploy MomoSim to AWS EC2
+- name: Deploy MoMoSim to AWS EC2
   hosts: momosim
   become: true
 
@@ -8,25 +8,42 @@
     app_dir: /opt/momosim
 
   tasks:
-   #Docker installation
-   - name: install required system packages
-     apt:
-      name:
-        - apt-transport-https
-        - ca-certificates
-        - curl
-        - git
-        - ufw
-      state: present
-      update_cache: true
-          
-      - name: Start and enable Docker service
+    - name: Install required system packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - git
+          - ufw
+        state: present
+        update_cache: true
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: deb https://download.docker.com/linux/ubuntu jammy stable
+        state: present
+
+    - name: Install Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+
+    - name: Start and enable Docker
       systemd:
         name: docker
         state: started
         enabled: true
 
-    # --- Security hardening ---
     - name: Allow SSH through firewall
       ufw:
         rule: allow
@@ -63,7 +80,6 @@
         name: ssh
         state: restarted
 
-    # --- App deployment ---
     - name: Clone MoMoSim repository
       git:
         repo: "{{ repo_url }}"
