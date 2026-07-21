@@ -21,7 +21,7 @@ resource "aws_security_group" "app" {
 
 resource "aws_vpc_security_group_ingress_rule" "ssh" {
   security_group_id = aws_security_group.app.id
-  description       = "SSH access, restricted to the operator's IP only"
+  description       = "SSH access, restricted to the operator IP only"
 
   cidr_ipv4   = var.ssh_allowed_cidr
   from_port   = var.ssh_port
