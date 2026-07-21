@@ -77,6 +77,9 @@ integration were mine.
 | 5 | Remediate the findings | Ran `npm audit fix` for the fixable dependency issues; switched the container scan to report-and-document for unfixable base-image CVEs | I decided to *fix* what we own and *accept/document* what we don't; I re-ran lint and tests to confirm nothing broke |
 | 6 | Add the third scan (Checkov for Terraform) | A report-only `iac-scan` job scoped to `terraform/` | I reviewed the Terraform first, decided report-mode was correct since infra is a teammate's area, and coordinated accordingly |
 
+## Quick Note
+**IaC scan (Checkov):** Claude was used for error-checking and debugging the Terraform `iac-scan` job (verifying a valid Checkov action version, scoping to `terraform/`, and setting it to report-only). During this it also committed and pushed the change to the branch — which I subsequently reviewed on the pipeline and confirmed passed before it was merged.
+
 ## My own contributions and changes
 
 - **Set the direction and scope**, including the decision to add the third
