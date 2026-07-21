@@ -3,28 +3,34 @@
   hosts: momosim
   become: true
 
-  vars:
-    repo_url: https://github.com/kol-apo/Fintech---Formative-1-.git
-    app_dir: /opt/momosim
-
   tasks:
-   #Docker installation
-   - name: install required system packages
-     apt:
-      name:
-        - apt-transport-https
-        - ca-certificates
-        - curl
-        - git
-        - ufw
-      state: present
-      update_cache: true
-          
-      - name: Start and enable Docker service
+    # --- Docker installation ---
+    - name: Install required system packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - git
+          - ufw
+          - docker.io
+          - docker-compose-v2
+        state: present
+        update_cache: true
+
+    - name: Start and enable Docker service
       systemd:
         name: docker
         state: started
         enabled: true
+
+    # --- Access management ---
+    - name: Grant team members SSH access
+      authorized_key:
+        user: "{{ ansible_user }}"
+        key: "{{ item }}"
+        state: present
+      loop: "{{ team_ssh_keys }}"
 
     # --- Security hardening ---
     - name: Allow SSH through firewall
