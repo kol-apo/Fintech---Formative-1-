@@ -1,61 +1,95 @@
 # =============================================================================
-# Root outputs — the values a human (or Ansible) needs after `terraform apply`.
-# Read them any time with `terraform output` (add -raw for scripting).
+# Root outputs — the values a human (or Ansible, or the CD pipeline) needs
+# after `terraform apply`. Read them any time with `terraform output`
+# (add -raw for scripting).
 # =============================================================================
+
+# --- The headline: where the app answers -------------------------------------
+
+output "app_url" {
+  description = "Public URL of the application (the bastion forwards this to the app server)"
+  value       = "http://${module.bastion.public_ip}${var.public_http_port == 80 ? "" : ":${var.public_http_port}"}"
+}
+
+# --- Access (SSH goes through the bastion) -----------------------------------
+
+output "bastion_public_ip" {
+  description = "Public IP of the bastion — SSH entry point, public URL host, and the private tier's outbound IP"
+  value       = module.bastion.public_ip
+}
+
+output "app_private_ip" {
+  description = "Private IP of the app server — reachable only via the bastion"
+  value       = module.app_server.private_ip
+}
+
+output "ssh_bastion_command" {
+  description = "SSH to the bastion itself"
+  value       = "ssh -i ${local.ssh_private_key_path} ubuntu@${module.bastion.public_ip}"
+}
+
+output "ssh_app_command" {
+  description = "SSH to the app server, jumping through the bastion (-J)"
+  value       = "ssh -i ${local.ssh_private_key_path} -J ubuntu@${module.bastion.public_ip} ubuntu@${module.app_server.private_ip}"
+}
+
+output "ansible_inventory_snippet" {
+  description = "Lines to paste into ansible/inventory.ini — app host reached via the bastion as a jump host"
+  value       = <<-EOT
+    [momosim]
+    ${module.app_server.private_ip} ansible_user=ubuntu ansible_ssh_private_key_file=${local.ssh_private_key_path} ansible_ssh_common_args='-o ProxyJump="ubuntu@${module.bastion.public_ip}"'
+  EOT
+}
+
+# --- Registry (CD pushes here, the app server pulls from here) ---------------
+
+output "ecr_repository_url" {
+  description = "URL of the private container registry — docker tag/push/pull target"
+  value       = module.registry.repository_url
+}
+
+output "ecr_login_command" {
+  description = "Log Docker in to the registry (on the app server this uses the instance role — no stored credentials)"
+  value       = "aws ecr get-login-password --region ${var.aws_region} | docker login --username AWS --password-stdin ${module.registry.repository_url}"
+}
+
+# --- Database ----------------------------------------------------------------
+
+output "db_endpoint" {
+  description = "RDS connection endpoint (host:port) — only resolvable/reachable from inside the VPC"
+  value       = module.database.endpoint
+}
+
+output "db_name" {
+  description = "Name of the initial database"
+  value       = module.database.db_name
+}
+
+# --- IDs for cross-stack references and debugging ----------------------------
 
 output "vpc_id" {
   description = "ID of the VPC"
   value       = module.network.vpc_id
 }
 
-output "public_subnet_id" {
-  description = "ID of the public subnet"
-  value       = module.network.public_subnet_id
+output "public_subnet_ids" {
+  description = "IDs of the public subnets (bastion)"
+  value       = module.network.public_subnet_ids
 }
 
-output "security_group_id" {
-  description = "ID of the application security group"
-  value       = module.security.security_group_id
+output "private_subnet_ids" {
+  description = "IDs of the private subnets (app server + database)"
+  value       = module.network.private_subnet_ids
 }
 
-output "instance_id" {
-  description = "ID of the EC2 instance"
-  value       = module.compute.instance_id
+output "app_instance_id" {
+  description = "ID of the app server EC2 instance"
+  value       = module.app_server.instance_id
 }
 
-output "instance_public_ip" {
-  description = "Public IP of the application server — feed this to the Ansible inventory"
-  value       = module.compute.public_ip
-}
-
-output "app_url" {
-  description = "URL where MoMoSim will answer once Ansible has deployed it"
-  value       = "http://${module.compute.public_ip}:${var.app_port}"
-}
-
-output "ssh_command" {
-  description = "Ready-made SSH command for the instance"
-  value       = "ssh -i ${local.ssh_private_key_path} ubuntu@${module.compute.public_ip}"
-}
-
-output "ansible_inventory_line" {
-  description = "Line to paste into ansible/inventory.ini"
-  value       = "${module.compute.public_ip} ansible_user=ubuntu ansible_ssh_private_key_file=${local.ssh_private_key_path}"
-}
-
-output "instance_public_dns" {
-  description = "Public DNS hostname of the instance (use instead of IP for stable references)"
-  value       = module.compute.public_dns
-}
-
-output "instance_private_ip" {
-  description = "Private IP of the instance inside the VPC"
-  value       = module.compute.private_ip
-}
-
-output "vpc_cidr" {
-  description = "CIDR block of the VPC"
-  value       = module.network.vpc_cidr
+output "bastion_instance_id" {
+  description = "ID of the bastion EC2 instance"
+  value       = module.bastion.instance_id
 }
 
 output "region" {

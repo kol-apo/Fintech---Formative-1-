@@ -4,18 +4,29 @@ variable "name_prefix" {
 }
 
 variable "vpc_id" {
-  description = "VPC the security group belongs to"
+  description = "VPC the security groups belong to"
+  type        = string
+}
+
+variable "vpc_cidr" {
+  description = "CIDR of the VPC — the bastion accepts NAT-forwarded traffic from this range"
   type        = string
 }
 
 variable "app_port" {
-  description = "Application port to expose publicly"
+  description = "Port the application container listens on"
   type        = number
 }
 
-variable "ssh_allowed_cidr" {
-  description = "CIDR block allowed to reach the SSH port"
-  type        = string
+variable "public_http_port" {
+  description = "Public port the bastion listens on for web traffic (forwarded to the app)"
+  type        = number
+  default     = 80
+}
+
+variable "ssh_allowed_cidrs" {
+  description = "CIDR blocks allowed to reach the bastion's SSH port (one per operator)"
+  type        = list(string)
 }
 
 variable "ssh_port" {
@@ -24,8 +35,8 @@ variable "ssh_port" {
   default     = 22
 }
 
-variable "app_allowed_cidr" {
-  description = "CIDR block allowed to reach the app port (public API by default)"
-  type        = string
-  default     = "0.0.0.0/0"
+variable "db_port" {
+  description = "Port the database listens on"
+  type        = number
+  default     = 5432
 }

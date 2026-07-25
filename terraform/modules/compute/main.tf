@@ -1,9 +1,11 @@
 # =============================================================================
-# Compute module — the EC2 instance that will run the MoMoSim container.
+# Compute module — one Ubuntu EC2 instance.
 #
-# Terraform only provisions the machine; installing Docker and deploying the
-# app is Ansible's job (ansible/ directory), so this instance boots as a
-# plain Ubuntu server reachable over SSH.
+# Generic on purpose: the root module instantiates it twice, once as the app
+# server (private subnet, no public IP, ECR pull role) and once as the bastion
+# (public subnet, public IP, no role). Terraform only provisions the machine;
+# installing Docker and deploying the app is Ansible's job (ansible/ directory),
+# so every instance boots as a plain Ubuntu server reachable over SSH.
 # =============================================================================
 
 # Look up the latest Ubuntu 22.04 LTS AMI at plan time instead of hardcoding
@@ -23,22 +25,33 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-# Upload the operator's public key so Ansible/SSH can authenticate.
-# Only the PUBLIC half ever leaves the operator's machine.
-resource "aws_key_pair" "app" {
-  key_name   = "${var.name_prefix}-key"
-  public_key = file(pathexpand(var.ssh_public_key_path))
-}
-
-resource "aws_instance" "app" {
+resource "aws_instance" "this" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.instance_type
   subnet_id              = var.subnet_id
   vpc_security_group_ids = var.security_group_ids
-  key_name               = aws_key_pair.app.key_name
+  key_name               = var.key_name
+
+  # Explicit rather than inherited from the subnet, so moving the instance
+  # between subnets can never silently change its exposure.
+  associate_public_ip_address = var.associate_public_ip
+
+  # Only the app server gets a role (ECR pull); the bastion passes null
+  iam_instance_profile = var.iam_instance_profile
+
+  # Must be false on the bastion: as the NAT hop it forwards packets whose
+  # source/destination is not its own address, which this check would drop.
+  source_dest_check = var.source_dest_check
+
+  # First-boot script (the bastion's NAT/port-forward setup). Replace the
+  # instance when it changes — the script only runs on first boot, so an
+  # in-place update would silently never execute.
+  user_data                   = var.user_data
+  user_data_replace_on_change = true
 
   # Require IMDSv2 (session tokens) for instance metadata — blocks the
-  # credential-theft trick that abuses the older IMDSv1 endpoint.
+  # credential-theft trick that abuses the older IMDSv1 endpoint. Matters
+  # more now that the app instance carries an IAM role.
   metadata_options {
     http_tokens   = "required"
     http_endpoint = "enabled"
@@ -50,10 +63,18 @@ resource "aws_instance" "app" {
     encrypted   = true
   }
 
-  # Detailed monitoring costs extra and isn't needed for a formative
+  # Detailed monitoring costs extra and isn't needed for coursework
   monitoring = false
 
+  # T-family instances default to "unlimited" CPU bursting, which quietly
+  # bills extra when the instance bursts too long. "standard" caps us at the
+  # baseline instead — the team account runs on fixed credits, so a surprise
+  # burn-down is worse than a briefly slow server.
+  credit_specification {
+    cpu_credits = "standard"
+  }
+
   tags = {
-    Name = "${var.name_prefix}-app-server"
+    Name = "${var.name_prefix}-${var.server_role}"
   }
 }
