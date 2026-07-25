@@ -54,21 +54,21 @@ single-VM coursework deployment and documented as such.
 
 ## What gets created
 
-| Resource | Purpose | Cost |
+| Resource | Purpose | Credit burn |
 |---|---|---|
-| VPC (`10.0.0.0/16`) | Isolated network for the project | free |
-| 2 public + 2 private subnets | Bastion tier / app+DB tier (RDS needs 2 AZs) | free |
-| Internet gateway, route tables | Inbound for public tier; private routes via bastion | free |
+| VPC (`10.0.0.0/16`) | Isolated network for the project | none |
+| 2 public + 2 private subnets | Bastion tier / app+DB tier (RDS needs 2 AZs) | none |
+| Internet gateway, route tables | Inbound for public tier; private routes via bastion | none |
 | Bastion host (`t3.micro`) | SSH door, public :80 front door, NAT | ~$0.27/day |
 | App server (`t3.micro`, Ubuntu 22.04) | Runs the MoMoSim container; no public IP | ~$0.27/day |
 | Public IPv4 (bastion, 1 of) | The public URL / SSH address | ~$0.12/day |
 | RDS PostgreSQL 16 (`db.t3.micro`, 20 GB) | Managed database, private subnets only | ~$0.50/day |
-| ECR repository | Private registry for CD images | ~free (<1 GB) |
-| IAM role + instance profile | Lets the app server pull from exactly our ECR repo | free |
-| 3 security groups | One per tier: bastion, app, database | free |
-| Key pair | Your SSH public key, shared by both instances | free |
+| ECR repository | Private registry for CD images | ~none (<1 GB) |
+| IAM role + instance profile | Lets the app server pull from exactly our ECR repo | none |
+| 3 security groups | One per tier: bastion, app, database | none |
+| Key pair | Your SSH public key, shared by both instances | none |
 
-## Costs & credits — read before applying
+## Credit budget — nobody pays anything (read before applying)
 
 The team account (created 2026-07-21) is on AWS's **credits-based FREE
 plan**: it has **no payment method and cannot be billed** — usage draws down
@@ -84,6 +84,8 @@ instances with CPU bursting capped to "standard" so load can never
 accelerate the drain. Check the balance any time:
 
 ```bash
+# us-east-1 is correct even though our infra is in eu-west-1: this is an
+# account-level billing API, and AWS serves those only from us-east-1
 aws freetier get-account-plan-state --region us-east-1
 ```
 
