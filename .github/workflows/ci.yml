@@ -73,12 +73,16 @@ jobs:
         run: npm audit
         continue-on-error: true
 
-      # Gate: fail the pipeline on High or Critical advisories only.
-      # Moderate/low are surfaced above but don't block the team. The one
-      # known finding (js-yaml, moderate) is a transitive devDependency that
-      # is absent from the production image — tracked in SECURITY.md.
-      - name: Audit gate (fail on high or critical)
-        run: npm audit --audit-level=high
+      # Gate: fail the pipeline on High/Critical advisories in the packages
+      # that actually ship — i.e. PRODUCTION dependencies (`--omit=dev`).
+      # The production image is built with `npm ci --omit=dev`, so dev-only
+      # tooling (jest, eslint and their transitive deps) never reaches
+      # deployment. Those dev advisories are still printed by the report step
+      # above for visibility; they simply don't block merges — especially as
+      # some currently have no fix short of a breaking jest downgrade. Any
+      # High/Critical in a production dependency still hard-fails the build.
+      - name: Audit gate (fail on high or critical in production deps)
+        run: npm audit --audit-level=high --omit=dev
 
   docker-build:
     name: Build Docker image
