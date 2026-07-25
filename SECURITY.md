@@ -1,9 +1,10 @@
 # Security Scanning — MoMoSim
 
 This document describes the automated security scanning added to the MoMoSim CI
-pipeline for Formative 3. Two scanners run on every pull request targeting `main`:
-one checks the application's npm dependencies, and one checks the built Docker
-image. Both run automatically — no manual steps are needed.
+pipeline for Formative 3. Three scanners run on every pull request targeting `main`:
+one checks the application's npm dependencies, one checks the built Docker image,
+and one checks the Terraform infrastructure code. All run automatically — no manual
+steps are needed.
 
 ---
 
@@ -79,8 +80,8 @@ base image (`node:20-alpine`) and its bundled components:
 
 | CVE | Component | Severity | Location |
 |---|---|---|---|
-| CVE-2026-29786 | `node-tar` / `tar` 7.5.11 (bundled with npm) | HIGH | Base image |
-| CVE-2026-31802 | Alpine OS package | HIGH | Base image |
+| CVE-2026-29786 | `node-tar` / `tar` 7.5.11 (bundled with npm) — hardlink path traversal | HIGH | Base image |
+| CVE-2026-31802 | `tar` 7.5.11 (bundled with npm) — file overwrite via symlink traversal | HIGH | Base image |
 
 These are brand-new 2026 advisories. No patched base image was available at the
 time of the scan.
@@ -109,12 +110,98 @@ response is to document the risk, monitor for base-image updates, and upgrade
 
 ---
 
+## Scanner 3 — Infrastructure-as-Code Scan (Checkov)
+
+### What it does
+Checkov statically analyses the Terraform configuration in `terraform/` for
+insecure infrastructure settings — for example overly-open security-group rules,
+unencrypted volumes, instances with public IPs, or missing logging. It catches
+misconfigurations in the infrastructure definition *before* anything is deployed,
+which neither `npm audit` nor Trivy can see.
+
+### Where it runs
+A dedicated `iac-scan` job inside `.github/workflows/ci.yml`, scoped to the
+`terraform/` directory. It runs on every pull request targeting `main`.
+
+### Settings
+
+| Setting | Value |
+|---|---|
+| Scope | `terraform/` directory, Terraform framework only |
+| Output | Failed checks only (quiet) |
+| On findings | Report (write results to the log); **does not** fail the build (`soft_fail`) |
+
+The scan is intentionally set to report rather than block (see rationale below).
+
+### Findings (scan date: 2026-07-21)
+
+The Terraform is already substantially hardened — the EC2 instance requires IMDSv2,
+its root volume is encrypted, the security group is default-deny, and SSH is
+restricted to the operator's IP. Checkov evaluated 33 checks and returned
+**26 passed, 7 failed**. None of the 7 are exploitable defects; they are intentional
+design choices, cost trade-offs for a short-lived formative environment, or a
+static-analysis limitation — each is explained below.
+
+| Checkov ID | Finding | Resource |
+|---|---|---|
+| CKV_AWS_130 | Public subnet auto-assigns public IPs on launch | `module.network.aws_subnet.public` |
+| CKV2_AWS_41 | No IAM role attached to the EC2 instance | `module.compute.aws_instance.app` |
+| CKV_AWS_126 | Detailed monitoring not enabled on the instance | `module.compute.aws_instance.app` |
+| CKV2_AWS_11 | VPC flow logging not enabled | `module.network.aws_vpc.main` |
+| CKV_AWS_135 | Instance not marked EBS-optimized | `module.compute.aws_instance.app` |
+| CKV2_AWS_5 | Security group not detected as attached to a resource | `module.security.aws_security_group.app` |
+| CKV2_AWS_12 | Default VPC security group does not restrict all traffic | `module.network.aws_vpc.main` |
+
+### How it was addressed — Accepted risks (documented)
+
+Each finding is either an intentional project requirement or a limitation of the
+scanner, not an oversight:
+
+1. **Public IP on the subnet (CKV_AWS_130).** Intentional — the app server needs a
+   public IP so Ansible and API users can reach it; a NAT gateway / bastion is out
+   of scope for a formative. The dedicated security group still controls exactly
+   which ports are open.
+
+2. **No IAM role on the instance (CKV2_AWS_41).** Intentional, and safer here — the
+   server only runs the container and never calls AWS APIs, so attaching no instance
+   role means there are no AWS credentials on the box for an attacker to steal.
+
+3. **Detailed monitoring & VPC flow logs off (CKV_AWS_126, CKV2_AWS_11).** Both add
+   AWS cost and are out of scope for a short-lived formative environment.
+
+4. **EBS optimization not set (CKV_AWS_135).** A performance flag, not a security
+   control; the small instance type in use does not require it. No security impact.
+
+5. **Security group "not attached" (CKV2_AWS_5).** A static-analysis limitation, not
+   a real gap: the security group *is* attached to the EC2 instance, but through a
+   cross-module reference (the `compute` module consumes the `security` module's
+   output), which Checkov cannot trace. Verified manually.
+
+6. **Default VPC security group not locked down (CKV2_AWS_12).** The project uses its
+   own dedicated, default-deny security group; the VPC's built-in default group is
+   left unused. This one could optionally be hardened with an
+   `aws_default_security_group` resource that denies all traffic — noted for the
+   infrastructure owner.
+
+Because these live in the infrastructure workstream's Terraform and represent
+conscious design trade-offs, the scan is configured to **report and document**
+rather than block — so findings are visible on every PR and reviewed with the
+infrastructure owner, without freezing the team's merges over accepted risks.
+
+---
+
 ## Accepted Risks Summary
 
 | Risk | Scanner | Reason accepted |
 |---|---|---|
 | CVE-2026-29786 in `node:20-alpine` | Trivy | In base image we don't control; no fix available; not reachable at runtime |
 | CVE-2026-31802 in `node:20-alpine` | Trivy | Same as above |
+| Public IP on subnet (CKV_AWS_130) | Checkov | Required for Ansible/API access; no bastion in scope; security group limits open ports |
+| No IAM role on instance (CKV2_AWS_41) | Checkov | Instance makes no AWS API calls; omitting the role means no credentials to steal |
+| No detailed monitoring / flow logs (CKV_AWS_126, CKV2_AWS_11) | Checkov | Extra AWS cost, out of scope for a short-lived formative environment |
+| EBS optimization off (CKV_AWS_135) | Checkov | Performance flag, not a security control; not needed for the instance type used |
+| SG "unattached" (CKV2_AWS_5) | Checkov | False positive — SG is attached via a cross-module reference Checkov cannot trace |
+| Default VPC SG not restricted (CKV2_AWS_12) | Checkov | Project uses a dedicated default-deny SG; VPC default group is unused (could be hardened) |
 
 **No risks are accepted at the application dependency level.** Scanner 1 is set
 to hard-fail on HIGH/CRITICAL, so any newly discovered vulnerability in the app's
@@ -124,8 +211,11 @@ own packages will immediately block the PR until fixed.
 
 ## Monitoring Going Forward
 
-- On every PR, CI automatically re-runs both scans. Any new HIGH/CRITICAL finding
-  in app dependencies will block the PR.
+- On every PR, CI automatically re-runs all three scans. Any new HIGH/CRITICAL
+  finding in app dependencies will block the PR.
 - When a new `node:20-alpine` (or `node:22-alpine`) release resolves the accepted
   CVEs, the base image should be updated in `momosim/Dockerfile` and the fix noted
   here.
+- If the Terraform changes, the Checkov scan re-evaluates it on the PR; any new
+  infrastructure finding should be reviewed with the infrastructure owner and
+  either fixed or added to the accepted-risks list above.
