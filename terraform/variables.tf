@@ -57,22 +57,43 @@ variable "aws_secret_key" {
   sensitive   = true
 }
 
+# --- Network -----------------------------------------------------------------
+
 variable "vpc_cidr" {
   description = "CIDR block for the VPC"
   type        = string
   default     = "10.0.0.0/16"
 }
 
-variable "public_subnet_cidr" {
-  description = "CIDR block for the public subnet (must sit inside vpc_cidr)"
-  type        = string
-  default     = "10.0.1.0/24"
+variable "public_subnet_cidrs" {
+  description = "CIDR blocks for the public subnets (bastion; subnets are free, so two keeps AZ options open)"
+  type        = list(string)
+  default     = ["10.0.1.0/24", "10.0.2.0/24"]
 }
 
+variable "private_subnet_cidrs" {
+  description = "CIDR blocks for the private subnets (app server + database; two AZs required)"
+  type        = list(string)
+  default     = ["10.0.11.0/24", "10.0.12.0/24"]
+}
+
+# --- Compute -----------------------------------------------------------------
+
+# The team account is on AWS's credits-based FREE plan (verified 2026-07-25:
+# it cannot be billed; usage draws from ~$98 of credits until 2027-01-21).
+# Under credits everything is charged at list price, and in eu-west-1
+# t3.micro is both cheaper per hour than t2.micro and twice the vCPUs —
+# so t3.micro it is, with CPU bursting capped in the compute module.
 variable "instance_type" {
   description = "EC2 instance type for the application server"
   type        = string
-  default     = "t3.micro" # free-tier eligible in most regions
+  default     = "t3.micro"
+}
+
+variable "bastion_instance_type" {
+  description = "EC2 instance type for the bastion (sshd + iptables only, so smallest works)"
+  type        = string
+  default     = "t3.micro"
 }
 
 variable "app_port" {
@@ -81,17 +102,27 @@ variable "app_port" {
   default     = 3000
 }
 
-variable "ssh_allowed_cidr" {
+variable "public_http_port" {
+  description = "Public port the bastion listens on for web traffic (forwarded to the app server)"
+  type        = number
+  default     = 80
+}
+
+variable "ssh_allowed_cidrs" {
   description = <<-EOT
-    CIDR block allowed to SSH into the instance. Deliberately has NO default:
-    each engineer must supply their own IP (e.g. "41.90.x.x/32") so we never
-    accidentally open port 22 to the whole internet.
+    CIDR blocks allowed to SSH into the BASTION (the app server only accepts
+    SSH from the bastion). Deliberately has NO default: each entry should be
+    one team member's IP (e.g. "41.90.x.x/32") so we never accidentally open
+    port 22 to the whole internet.
   EOT
-  type        = string
+  type        = list(string)
 
   validation {
-    condition     = can(cidrhost(var.ssh_allowed_cidr, 0))
-    error_message = "ssh_allowed_cidr must be a valid CIDR block, e.g. 41.90.10.5/32."
+    condition = (
+      length(var.ssh_allowed_cidrs) > 0 &&
+      alltrue([for c in var.ssh_allowed_cidrs : can(cidrhost(c, 0))])
+    )
+    error_message = "ssh_allowed_cidrs must contain at least one valid CIDR block, e.g. [\"41.90.10.5/32\"]."
   }
 }
 
@@ -99,4 +130,51 @@ variable "ssh_public_key_path" {
   description = "Path to the SSH public key uploaded to AWS for instance access"
   type        = string
   default     = "~/.ssh/momosim.pub"
+}
+
+# --- Database ----------------------------------------------------------------
+
+variable "db_name" {
+  description = "Name of the initial database created on the RDS instance"
+  type        = string
+  default     = "momosim"
+}
+
+variable "db_username" {
+  description = "Master username for the database"
+  type        = string
+  default     = "momosim"
+}
+
+variable "db_password" {
+  description = <<-EOT
+    Master password for the database. Deliberately has NO default — set it in
+    the gitignored secrets.auto.tfvars, next to the AWS keys. Marked sensitive
+    so Terraform redacts it from plan output.
+  EOT
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = length(var.db_password) >= 12
+    error_message = "db_password must be at least 12 characters."
+  }
+}
+
+variable "db_port" {
+  description = "Port the database listens on"
+  type        = number
+  default     = 5432
+}
+
+variable "db_engine_version" {
+  description = "PostgreSQL major version for RDS"
+  type        = string
+  default     = "16"
+}
+
+variable "db_instance_class" {
+  description = "RDS instance class"
+  type        = string
+  default     = "db.t3.micro"
 }
