@@ -33,11 +33,14 @@ output "ssh_app_command" {
   value       = "ssh -i ${local.ssh_private_key_path} -J ubuntu@${module.bastion.public_ip} ubuntu@${module.app_server.private_ip}"
 }
 
+# ProxyCommand rather than the shorter ProxyJump: -J does not reliably pass
+# the identity file to the jump hop on every OpenSSH build (verified failing
+# on Windows), while an explicit ProxyCommand with its own -i always works.
 output "ansible_inventory_snippet" {
   description = "Lines to paste into ansible/inventory.ini — app host reached via the bastion as a jump host"
   value       = <<-EOT
     [momosim]
-    ${module.app_server.private_ip} ansible_user=ubuntu ansible_ssh_private_key_file=${local.ssh_private_key_path} ansible_ssh_common_args='-o ProxyJump="ubuntu@${module.bastion.public_ip}"'
+    ${module.app_server.private_ip} ansible_user=ubuntu ansible_ssh_private_key_file=${local.ssh_private_key_path} ansible_ssh_common_args='-o ProxyCommand="ssh -i ${local.ssh_private_key_path} -W %h:%p -o StrictHostKeyChecking=accept-new ubuntu@${module.bastion.public_ip}"'
   EOT
 }
 
