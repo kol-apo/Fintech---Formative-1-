@@ -22,7 +22,14 @@ sysctl --system
 iptables -t nat -A POSTROUTING -o "$IFACE" -s ${vpc_cidr} -j MASQUERADE
 
 # --- 2) Public URL: forward :${public_http_port} to the app server ----------
-iptables -t nat -A PREROUTING -i "$IFACE" -p tcp --dport ${public_http_port} \
+# ! -s vpc_cidr matters: without it, this DNAT also catches the private
+# subnet's own OUTBOUND traffic whenever its destination port happens to be
+# ${public_http_port} (e.g. the app server's own apt/http requests to a real
+# server on port 80) and redirects it back to the app server itself instead
+# of letting it leave — silently breaking all outbound HTTP from the private
+# subnet. Scoping to non-VPC sources limits the DNAT to genuine inbound
+# public traffic.
+iptables -t nat -A PREROUTING -i "$IFACE" -p tcp --dport ${public_http_port} ! -s ${vpc_cidr} \
   -j DNAT --to-destination ${app_private_ip}:${app_port}
 
 # Masquerade the forwarded flow too, so the app sees the BASTION as the

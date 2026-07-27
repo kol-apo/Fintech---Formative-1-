@@ -4,7 +4,6 @@
   become: true
 
   vars:
-    repo_url: "https://github.com/kol-apo/Fintech---Formative-1-.git"
     app_dir: "/opt/momosim"
     aws_region: "eu-west-1"
     ecr_registry_url: "020262235992.dkr.ecr.eu-west-1.amazonaws.com/momosim-dev"
@@ -14,11 +13,10 @@
     - name: Install required system packages
       apt:
         name:
-          - git
           - apt-transport-https
           - ca-certificates
           - curl
-          - awscli  # Required for ECR authentication
+          - awscli
         state: present
         update_cache: yes
 
@@ -26,7 +24,7 @@
       apt:
         name:
           - docker.io
-          - docker-compose
+          - docker-compose-v2
         state: present
 
     - name: Start and enable Docker service
@@ -35,31 +33,32 @@
         state: started
         enabled: yes
 
-    - name: Clone application repository
-      git:
-        repo: "{{ repo_url }}"
-        dest: "{{ app_dir }}"
-        version: main
-        force: yes
+    - name: Ensure app directory exists
+      file:
+        path: "{{ app_dir }}"
+        state: directory
 
-    - name: Authenticate Docker to AWS ECR
-      shell: |
-        aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ ecr_registry_url }}
-      args:
-        executable: /bin/bash
-      register: ecr_login
-      changed_when: "'Login Succeeded' not in ecr_login.stdout"
+    - name: Render production docker-compose.yml
+      template:
+        src: templates/docker-compose.yml.j2
+        dest: "{{ app_dir }}/docker-compose.yml"
 
-    - name: Pull the latest image from ECR
-      command: docker-compose pull
+    # No stored registry password: the instance's IAM role (scoped to pull
+    # from exactly this one ECR repository) supplies the credentials behind
+    # the scenes via the instance metadata service.
+    - name: Log in to ECR
+      shell: >
+        aws ecr get-login-password --region {{ aws_region }}
+        | docker login --username AWS --password-stdin {{ ecr_repository_url }}
+      changed_when: false
+
+    - name: Pull the latest image
+      command: docker compose pull
       args:
         chdir: "{{ app_dir }}"
-      environment:
-        ECR_REGISTRY_URL: "{{ ecr_registry_url }}"
-        DB_PASSWORD: "{{ db_password }}"
 
-    - name: Restart the container with the new image
-      command: docker-compose up -d --remove-orphans
+    - name: Restart the service with the new image
+      command: docker compose up -d --remove-orphans
       args:
         chdir: "{{ app_dir }}"
       environment:

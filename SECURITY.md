@@ -1,10 +1,14 @@
 # Security Scanning — MoMoSim
 
-This document describes the automated security scanning added to the MoMoSim CI
-pipeline for Formative 3. Three scanners run on every pull request targeting `main`:
-one checks the application's npm dependencies, one checks the built Docker image,
-and one checks the Terraform infrastructure code. All run automatically — no manual
-steps are needed.
+This document describes the automated security scanning in the MoMoSim CI
+pipeline, added for Formative 3 and hardened into a hard gate for the
+Summative. Three scanners run on every pull request targeting `main`, and
+again as the first job of the CD pipeline (`cd.yml`) before anything is
+built or deployed: one checks the application's npm dependencies, one checks
+the built Docker image, and one checks the Terraform infrastructure code.
+All run automatically — no manual steps are needed. All three now **fail the
+build** on unaccepted critical findings; anything accepted is named
+explicitly below, not silently ignored.
 
 ---
 
@@ -78,18 +82,26 @@ and others). This catches vulnerabilities that exist in the base image or runtim
 environment, which `npm audit` cannot see.
 
 ### Where it runs
-A step inside the `docker-build` job in `.github/workflows/ci.yml`, immediately
-after the image is built. It runs on every pull request targeting `main`.
+Two steps inside the `docker-build` job in `.github/workflows/ci.yml`,
+immediately after the image is built. `ci.yml` runs on every pull request
+targeting `main`, and is also invoked as the first job of the CD pipeline
+(`cd.yml`) before anything is built/deployed — so a merge to `main` never
+skips this gate.
 
 ### Settings
 
-| Setting | Value |
-|---|---|
-| Severity filter | `CRITICAL,HIGH` only |
-| Fixed-only | Yes — only shows CVEs that have a patch available |
-| On findings | Report (write results to the log); **does not** fail the build |
+| Step | Severity filter | Fixed-only | On findings |
+|---|---|---|---|
+| Report (visibility) | `CRITICAL,HIGH` | Yes | Report only, **does not** fail the build |
+| Gate (Summative requirement) | `CRITICAL` only | Yes | **Fails the build** |
 
-The scan is intentionally set to report rather than block (see rationale below).
+The report step is unchanged from F3 and stays non-blocking for the reasons
+below. The gate step is new for the Summative CD requirement ("fail the build
+if critical vulnerabilities are detected") and hard-fails on any CRITICAL
+finding. It's scoped to CRITICAL rather than CRITICAL+HIGH because the two
+currently-known findings (below) are both HIGH, live in a base image we don't
+control, and have no fix available — blocking on those specifically would
+give no security benefit while permanently freezing the team's merges.
 
 ### Findings (scan date: 2026-07-21)
 
@@ -139,7 +151,8 @@ which neither `npm audit` nor Trivy can see.
 
 ### Where it runs
 A dedicated `iac-scan` job inside `.github/workflows/ci.yml`, scoped to the
-`terraform/` directory. It runs on every pull request targeting `main`.
+`terraform/` directory. It runs on every pull request targeting `main`, and
+(via `workflow_call`) as the first job of `cd.yml` before any deploy.
 
 ### Settings
 
@@ -147,64 +160,54 @@ A dedicated `iac-scan` job inside `.github/workflows/ci.yml`, scoped to the
 |---|---|
 | Scope | `terraform/` directory, Terraform framework only |
 | Output | Failed checks only (quiet) |
-| On findings | Report (write results to the log); **does not** fail the build (`soft_fail`) |
+| `skip_check` | The 19 check IDs below — already triaged and reasoned |
+| On findings | **Fails the build** (`soft_fail: false`) for anything *not* in `skip_check` |
 
-The scan is intentionally set to report rather than block (see rationale below).
+Changed for the Summative: F3 ran this scan as report-only (`soft_fail: true`)
+while the infrastructure was still being designed. Now that Terraform is
+final, the gate is hard — any check *not* explicitly triaged below blocks the
+build, satisfying "fail on critical" without relitigating decisions already
+made.
 
-### Findings (scan date: 2026-07-21)
+### Findings (scan date: 2026-07-26, re-verified after the Summative Terraform expansion)
 
-The Terraform is already substantially hardened — the EC2 instance requires IMDSv2,
-its root volume is encrypted, the security group is default-deny, and SSH is
-restricted to the operator's IP. Checkov evaluated 33 checks and returned
-**26 passed, 7 failed**. None of the 7 are exploitable defects; they are intentional
-design choices, cost trade-offs for a short-lived formative environment, or a
-static-analysis limitation — each is explained below.
+The Terraform grew substantially for the Summative (bastion, RDS, ECR, IAM
+modules added on top of the F3 app server + network) and those additions
+hadn't been triaged before. Re-running Checkov against the current code:
+**92 passed, 0 failed** once the 19 IDs below are skipped. None are
+exploitable defects — each is a structural requirement of this architecture,
+a cost trade-off consistent with the project's stated "minimize credit burn"
+design (see `terraform/README.md`), a choice already reasoned in the
+Terraform code's own comments, or a verified static-analysis false positive.
 
-| Checkov ID | Finding | Resource |
+| Checkov ID | Finding | Why it's accepted |
 |---|---|---|
-| CKV_AWS_130 | Public subnet auto-assigns public IPs on launch | `module.network.aws_subnet.public` |
-| CKV2_AWS_41 | No IAM role attached to the EC2 instance | `module.compute.aws_instance.app` |
-| CKV_AWS_126 | Detailed monitoring not enabled on the instance | `module.compute.aws_instance.app` |
-| CKV2_AWS_11 | VPC flow logging not enabled | `module.network.aws_vpc.main` |
-| CKV_AWS_135 | Instance not marked EBS-optimized | `module.compute.aws_instance.app` |
-| CKV2_AWS_5 | Security group not detected as attached to a resource | `module.security.aws_security_group.app` |
-| CKV2_AWS_12 | Default VPC security group does not restrict all traffic | `module.network.aws_vpc.main` |
+| CKV_AWS_88 | Bastion EC2 has a public IP | Its entire purpose is to be the one public-facing host — that's what makes it a bastion |
+| CKV_AWS_130 | Public subnets auto-assign public IPs | Required for the bastion to get its public IP; the dedicated SG still controls which ports are open |
+| CKV_AWS_260 | SG allows `0.0.0.0/0` on port 80 | The public URL requirement — the bastion forwards this to the app via iptables |
+| CKV_AWS_24 | SG allows `0.0.0.0/0` on port 22 (flagged on `app_ssh_from_bastion`) | False positive — that rule uses `referenced_security_group_id` (bastion SG only), never a CIDR; verified manually, same class of gap as CKV2_AWS_5 below |
+| CKV2_AWS_5 (×3: bastion/app/db SGs) | "Security group not attached to a resource" | Attached via a cross-module reference Checkov can't trace (`compute` module consumes `security` module's output) — verified manually |
+| CKV2_AWS_12 | Default VPC SG not restricted | Project uses its own dedicated, default-deny SGs; the VPC's built-in default group is simply unused |
+| CKV_AWS_126 | Detailed monitoring off (app + bastion) | AWS cost, out of scope for a short-lived coursework environment |
+| CKV_AWS_135 | Instances not EBS-optimized | Performance flag, not a security control; not needed at this instance size |
+| CKV2_AWS_11 | VPC flow logging off | AWS cost, out of scope |
+| CKV_AWS_161 | RDS IAM authentication not enabled | Would require app-level changes to generate IAM auth tokens; the app doesn't even use the DB yet (in-memory store) — out of scope |
+| CKV_AWS_293 | RDS deletion protection off | **Conflicts on purpose** with `skip_final_snapshot`/ECR `force_delete` — this environment is destroyed and rebuilt repeatedly to save credits; deletion protection would block that |
+| CKV_AWS_353 | RDS performance insights off | AWS cost, out of scope |
+| CKV_AWS_157 | RDS not Multi-AZ | ~2x RDS cost; already named as an "obvious production upgrade" out of scope in `terraform/README.md` |
+| CKV_AWS_129 | RDS log exports not enabled | AWS cost/complexity, out of scope (cheap future improvement, noted for the infra owner) |
+| CKV_AWS_118 | RDS enhanced monitoring off | AWS cost, out of scope |
+| CKV2_AWS_30 | RDS query logging off | AWS cost/complexity, out of scope |
+| CKV2_AWS_60 | RDS "copy tags to snapshot" off | Low-value on a DB that never takes a final snapshot (`skip_final_snapshot: true`) |
+| CKV_AWS_136 | ECR not encrypted with KMS | Already reasoned in `modules/registry/main.tf`: AES256 (AWS-managed key) avoids KMS cost/rotation ceremony with no requirement driving it |
+| CKV_AWS_51 | ECR image tags mutable | Already reasoned in `modules/registry/main.tf`: the deploy flow re-points `:latest`; each push is also SHA-tagged for traceability |
 
-### How it was addressed — Accepted risks (documented)
-
-Each finding is either an intentional project requirement or a limitation of the
-scanner, not an oversight:
-
-1. **Public IP on the subnet (CKV_AWS_130).** Intentional — the app server needs a
-   public IP so Ansible and API users can reach it; a NAT gateway / bastion is out
-   of scope for a formative. The dedicated security group still controls exactly
-   which ports are open.
-
-2. **No IAM role on the instance (CKV2_AWS_41).** Intentional, and safer here — the
-   server only runs the container and never calls AWS APIs, so attaching no instance
-   role means there are no AWS credentials on the box for an attacker to steal.
-
-3. **Detailed monitoring & VPC flow logs off (CKV_AWS_126, CKV2_AWS_11).** Both add
-   AWS cost and are out of scope for a short-lived formative environment.
-
-4. **EBS optimization not set (CKV_AWS_135).** A performance flag, not a security
-   control; the small instance type in use does not require it. No security impact.
-
-5. **Security group "not attached" (CKV2_AWS_5).** A static-analysis limitation, not
-   a real gap: the security group *is* attached to the EC2 instance, but through a
-   cross-module reference (the `compute` module consumes the `security` module's
-   output), which Checkov cannot trace. Verified manually.
-
-6. **Default VPC security group not locked down (CKV2_AWS_12).** The project uses its
-   own dedicated, default-deny security group; the VPC's built-in default group is
-   left unused. This one could optionally be hardened with an
-   `aws_default_security_group` resource that denies all traffic — noted for the
-   infrastructure owner.
-
-Because these live in the infrastructure workstream's Terraform and represent
-conscious design trade-offs, the scan is configured to **report and document**
-rather than block — so findings are visible on every PR and reviewed with the
-infrastructure owner, without freezing the team's merges over accepted risks.
+### How it was addressed
+All 19 IDs above are accepted and explicitly named in `skip_check` in
+`ci.yml` — this is a hard allow-list, not a blanket soft-fail: anything not
+on it now blocks the build. If the Terraform changes and introduces a new
+finding, the build fails until it's either fixed or added here with the same
+kind of documented reasoning.
 
 ---
 
@@ -212,14 +215,13 @@ infrastructure owner, without freezing the team's merges over accepted risks.
 
 | Risk | Scanner | Reason accepted |
 |---|---|---|
-| CVE-2026-29786 in `node:20-alpine` | Trivy | In base image we don't control; no fix available; not reachable at runtime |
-| CVE-2026-31802 in `node:20-alpine` | Trivy | Same as above |
-| Public IP on subnet (CKV_AWS_130) | Checkov | Required for Ansible/API access; no bastion in scope; security group limits open ports |
-| No IAM role on instance (CKV2_AWS_41) | Checkov | Instance makes no AWS API calls; omitting the role means no credentials to steal |
-| No detailed monitoring / flow logs (CKV_AWS_126, CKV2_AWS_11) | Checkov | Extra AWS cost, out of scope for a short-lived formative environment |
-| EBS optimization off (CKV_AWS_135) | Checkov | Performance flag, not a security control; not needed for the instance type used |
-| SG "unattached" (CKV2_AWS_5) | Checkov | False positive — SG is attached via a cross-module reference Checkov cannot trace |
-| Default VPC SG not restricted (CKV2_AWS_12) | Checkov | Project uses a dedicated default-deny SG; VPC default group is unused (could be hardened) |
+| CVE-2026-29786, CVE-2026-31802 in `node:20-alpine` | Trivy | In a base image we don't control; both HIGH not CRITICAL; no fix available; not reachable at runtime. The CRITICAL gate still blocks anything at that severity. |
+| 19 Checkov IDs (bastion public IP, port 80/22 rules, RDS cost trade-offs, ECR mutability/encryption, SG cross-module false positives — full list and reasoning above) | Checkov | Structural design requirements, cost trade-offs consistent with the project's "minimize credit burn" goal, or verified scanner false positives. Explicitly named in `skip_check`; the gate hard-fails on anything else. |
+
+Superseded by the Summative Terraform expansion: the F3-era **CKV2_AWS_41**
+("no IAM role on the instance") no longer applies — the app server now has
+an IAM instance role, scoped to pulling from exactly one ECR repository (see
+`modules/iam/main.tf`), which the registry-based CD deploy depends on.
 
 **No risks are accepted at the application dependency level.** Scanner 1 is set
 to hard-fail on HIGH/CRITICAL, so any newly discovered vulnerability in the app's
@@ -229,11 +231,15 @@ own packages will immediately block the PR until fixed.
 
 ## Monitoring Going Forward
 
-- On every PR, CI automatically re-runs all three scans. Any new HIGH/CRITICAL
-  finding in app dependencies will block the PR.
+- On every PR (and again as the first job of `cd.yml` on merge to `main`), CI
+  automatically re-runs all scans. Any new HIGH/CRITICAL finding in app
+  dependencies, any new CRITICAL image CVE, or any new Checkov finding not
+  already in `skip_check` will now block the pipeline — including the deploy.
 - When a new `node:20-alpine` (or `node:22-alpine`) release resolves the accepted
   CVEs, the base image should be updated in `momosim/Dockerfile` and the fix noted
   here.
-- If the Terraform changes, the Checkov scan re-evaluates it on the PR; any new
-  infrastructure finding should be reviewed with the infrastructure owner and
-  either fixed or added to the accepted-risks list above.
+- If the Terraform changes and Checkov flags something new, that's expected to
+  happen occasionally now that the gate is hard — review it with the
+  infrastructure owner and either fix it or add the check ID to `skip_check`
+  in `ci.yml` with the same kind of documented reasoning used above. Don't
+  widen `skip_check` without a reason recorded here.
