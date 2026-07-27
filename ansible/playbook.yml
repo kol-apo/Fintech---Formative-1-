@@ -6,6 +6,9 @@
   vars:
     repo_url: "https://github.com/kol-apo/Fintech---Formative-1-.git"
     app_dir: "/opt/momosim"
+    aws_region: "eu-west-1"
+    ecr_registry_url: "298434187594.dkr.ecr.eu-west-1.amazonaws.com/momosim-dev"
+    db_password: "MomosimPassword123!"
 
   tasks:
     - name: Install required system packages
@@ -15,12 +18,15 @@
           - apt-transport-https
           - ca-certificates
           - curl
+          - awscli  # Required for ECR authentication
         state: present
         update_cache: yes
 
-    - name: Install Docker
+    - name: Install Docker and Docker Compose
       apt:
-        name: docker.io
+        name:
+          - docker.io
+          - docker-compose
         state: present
 
     - name: Start and enable Docker service
@@ -36,15 +42,40 @@
         version: main
         force: yes
 
-    - name: Run docker compose
-      command: docker compose up -d --build
+    - name: Authenticate Docker to AWS ECR
+      shell: |
+        aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ ecr_registry_url }}
+      args:
+        executable: /bin/bash
+      register: ecr_login
+      changed_when: "'Login Succeeded' not in ecr_login.stdout"
+
+    - name: Pull the latest image from ECR
+      command: docker-compose pull
       args:
         chdir: "{{ app_dir }}"
+      environment:
+        ECR_REGISTRY_URL: "{{ ecr_registry_url }}"
+        DB_PASSWORD: "{{ db_password }}"
+
+    - name: Restart the container with the new image
+      command: docker-compose up -d --remove-orphans
+      args:
+        chdir: "{{ app_dir }}"
+      environment:
+        ECR_REGISTRY_URL: "{{ ecr_registry_url }}"
+        DB_PASSWORD: "{{ db_password }}"
 
     - name: UFW - Allow port 22 (SSH)
       ufw:
         rule: allow
         port: '22'
+        proto: tcp
+
+    - name: UFW - Allow port 80 (HTTP)
+      ufw:
+        rule: allow
+        port: '80'
         proto: tcp
 
     - name: UFW - Allow port 3000 (App)
