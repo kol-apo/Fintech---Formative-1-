@@ -33,6 +33,11 @@ output "ssh_app_command" {
   value       = "ssh -i ${local.ssh_private_key_path} -J ubuntu@${module.bastion.public_ip} ubuntu@${module.app_server.private_ip}"
 }
 
+output "bastion_security_group_id" {
+  description = "ID of the bastion's security group — the CD pipeline authorizes/revokes a temporary single-IP SSH rule on this group for each deploy, since GitHub-hosted runners don't have a stable IP to add to ssh_allowed_cidrs"
+  value       = module.security.bastion_security_group_id
+}
+
 # ProxyCommand rather than the shorter ProxyJump: -J does not reliably pass
 # the identity file to the jump hop on every OpenSSH build (verified failing
 # on Windows), while an explicit ProxyCommand with its own -i always works.
