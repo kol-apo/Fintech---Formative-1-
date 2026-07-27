@@ -5,6 +5,9 @@
 
   vars:
     app_dir: "/opt/momosim"
+    aws_region: "eu-west-1"
+    ecr_registry_url: "020262235992.dkr.ecr.eu-west-1.amazonaws.com/momosim-dev"
+    db_password: "MomosimPassword123!"
 
   tasks:
     - name: Install required system packages
@@ -17,7 +20,7 @@
         state: present
         update_cache: yes
 
-    - name: Install Docker
+    - name: Install Docker and Docker Compose
       apt:
         name:
           - docker.io
@@ -58,11 +61,20 @@
       command: docker compose up -d --remove-orphans
       args:
         chdir: "{{ app_dir }}"
+      environment:
+        ECR_REGISTRY_URL: "{{ ecr_registry_url }}"
+        DB_PASSWORD: "{{ db_password }}"
 
     - name: UFW - Allow port 22 (SSH)
       ufw:
         rule: allow
         port: '22'
+        proto: tcp
+
+    - name: UFW - Allow port 80 (HTTP)
+      ufw:
+        rule: allow
+        port: '80'
         proto: tcp
 
     - name: UFW - Allow port 3000 (App)

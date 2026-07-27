@@ -1,11 +1,13 @@
 services:
-  momosim:
-    build: ./momosim
-    image: momosim:latest
-    container_name: momosim
+  app:
+    image: ${ECR_REGISTRY_URL:-020262235992.dkr.ecr.eu-west-1.amazonaws.com/momosim-dev}:latest
+    container_name: momosim-backend
+    restart: always
     ports:
-      - "3000:3000"
+      - "80:3000"
     environment:
-      - PORT=3000
-    # Data is in-memory, so a restart resets state — but keep the app up
-    restart: unless-stopped
+      - DB_HOST=momosim-dev-db.cpewcmc2u14x.eu-west-1.rds.amazonaws.com
+      - DB_PORT=5432
+      - DB_NAME=momosim
+      - DB_USER=momosim
+      - DB_PASSWORD=${DB_PASSWORD:-MomosimPassword123!}
