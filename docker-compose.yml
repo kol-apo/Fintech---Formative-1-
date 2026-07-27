@@ -1,12 +1,12 @@
 services:
   app:
-    image: ${ECR_REGISTRY_URL:-298434187594.dkr.ecr.eu-west-1.amazonaws.com/momosim-dev}:latest
+    image: ${ECR_REGISTRY_URL:-020262235992.dkr.ecr.eu-west-1.amazonaws.com/momosim-dev}:latest
     container_name: momosim-backend
     restart: always
     ports:
       - "80:3000"
     environment:
-      - DB_HOST=momosim-dev-db.cjaiois8m5vy.eu-west-1.rds.amazonaws.com
+      - DB_HOST=momosim-dev-db.cpewcmc2u14x.eu-west-1.rds.amazonaws.com
       - DB_PORT=5432
       - DB_NAME=momosim
       - DB_USER=momosim

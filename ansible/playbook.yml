@@ -7,7 +7,7 @@
     repo_url: "https://github.com/kol-apo/Fintech---Formative-1-.git"
     app_dir: "/opt/momosim"
     aws_region: "eu-west-1"
-    ecr_registry_url: "298434187594.dkr.ecr.eu-west-1.amazonaws.com/momosim-dev"
+    ecr_registry_url: "020262235992.dkr.ecr.eu-west-1.amazonaws.com/momosim-dev"
     db_password: "MomosimPassword123!"
 
   tasks:
