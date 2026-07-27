@@ -1,7 +1,12 @@
 ---
 # Shared vars for every host in the inventory.
-repo_url: https://github.com/kol-apo/Fintech---Formative-1-.git
 app_dir: /opt/momosim
+app_port: 3000
+
+# Defaults for the registry-pull deploy — overridden by --extra-vars from the
+# CD pipeline (cd.yml) on every deploy: image_uri, ecr_repository_url are
+# always passed explicitly since they change on every push.
+aws_region: eu-west-1
 
 # Teammates' SSH public keys. Add a line here (and re-run the playbook)
 # to grant someone access — no manual "ssh + append authorized_keys" needed,
