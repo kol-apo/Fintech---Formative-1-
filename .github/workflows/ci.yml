@@ -3,11 +3,15 @@ name: CI
 # Runs on pushes to every branch EXCEPT main, and on pull requests
 # targeting main. Direct pushes to main don't re-run the pipeline —
 # code only lands there through a PR that already passed it.
+#
+# workflow_call: lets cd.yml invoke this exact set of jobs as its first gate
+# before building/deploying, instead of duplicating lint/test/scan logic.
 on:
   push:
     branches-ignore: [main]
   pull_request:
     branches: [main]
+  workflow_call: {}
 
 jobs:
   lint-and-test:
@@ -120,6 +124,21 @@ jobs:
           ignore-unfixed: true
           exit-code: "0"
 
+      # Gate: hard-fail on CRITICAL only. Scoped below HIGH deliberately —
+      # the two currently-known findings (SECURITY.md) are both HIGH, in
+      # node:20-alpine, with no fix available yet and no reachable code path
+      # in this app (we never invoke npm/tar at runtime); blocking the whole
+      # team's merges on an unfixable base-image CVE would give no security
+      # benefit. Anything CRITICAL, though, always blocks.
+      - name: Scan image with Trivy (gate - fail on CRITICAL)
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: momosim:ci
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
       - name: Smoke-test the image
         run: |
           docker run -d --rm --name momosim-ci -p 3000:3000 momosim:ci
@@ -139,18 +158,21 @@ jobs:
       # settings (open ingress, unencrypted volumes, missing logging, etc.).
       #   directory/framework -> scan only our Terraform, nothing else
       #   quiet               -> print only the checks that FAILED
-      #   soft_fail: true     -> REPORT, don't block. The Terraform is owned by
-      #                          the infrastructure workstream; this scan
-      #                          surfaces findings on every PR for review and
-      #                          for SECURITY.md, without blocking the team's
-      #                          merges. Findings are triaged with the infra
-      #                          owner and either fixed there or accepted with
-      #                          a documented rationale.
+      #   skip_check          -> the specific, already-triaged checks listed
+      #                          and reasoned in SECURITY.md (structural
+      #                          design choices, cost trade-offs, or verified
+      #                          Checkov false positives on cross-module SG
+      #                          references) — kept in sync with that doc.
+      #   soft_fail: false    -> hard gate on everything NOT in skip_check.
+      #                          Any NEW finding (e.g. from a future module
+      #                          change) blocks the build until it's fixed or
+      #                          added to skip_check with a documented reason.
       - name: Run Checkov against terraform/
         uses: bridgecrewio/checkov-action@v12.3114.0
         with:
           directory: terraform/
           framework: terraform
           quiet: true
-          soft_fail: true
+          soft_fail: false
           output_format: cli
+          skip_check: "CKV_AWS_126,CKV_AWS_135,CKV_AWS_88,CKV_AWS_161,CKV_AWS_293,CKV_AWS_353,CKV_AWS_157,CKV_AWS_129,CKV_AWS_118,CKV_AWS_130,CKV_AWS_136,CKV_AWS_51,CKV_AWS_260,CKV_AWS_24,CKV2_AWS_60,CKV2_AWS_5,CKV2_AWS_12,CKV2_AWS_30,CKV2_AWS_11"
