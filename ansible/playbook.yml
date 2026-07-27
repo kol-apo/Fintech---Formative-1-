@@ -4,23 +4,24 @@
   become: true
 
   vars:
-    repo_url: "https://github.com/kol-apo/Fintech---Formative-1-.git"
     app_dir: "/opt/momosim"
 
   tasks:
     - name: Install required system packages
       apt:
         name:
-          - git
           - apt-transport-https
           - ca-certificates
           - curl
+          - awscli
         state: present
         update_cache: yes
 
     - name: Install Docker
       apt:
-        name: docker.io
+        name:
+          - docker.io
+          - docker-compose-v2
         state: present
 
     - name: Start and enable Docker service
@@ -29,15 +30,32 @@
         state: started
         enabled: yes
 
-    - name: Clone application repository
-      git:
-        repo: "{{ repo_url }}"
-        dest: "{{ app_dir }}"
-        version: main
-        force: yes
+    - name: Ensure app directory exists
+      file:
+        path: "{{ app_dir }}"
+        state: directory
 
-    - name: Run docker compose
-      command: docker compose up -d --build
+    - name: Render production docker-compose.yml
+      template:
+        src: templates/docker-compose.yml.j2
+        dest: "{{ app_dir }}/docker-compose.yml"
+
+    # No stored registry password: the instance's IAM role (scoped to pull
+    # from exactly this one ECR repository) supplies the credentials behind
+    # the scenes via the instance metadata service.
+    - name: Log in to ECR
+      shell: >
+        aws ecr get-login-password --region {{ aws_region }}
+        | docker login --username AWS --password-stdin {{ ecr_repository_url }}
+      changed_when: false
+
+    - name: Pull the latest image
+      command: docker compose pull
+      args:
+        chdir: "{{ app_dir }}"
+
+    - name: Restart the service with the new image
+      command: docker compose up -d --remove-orphans
       args:
         chdir: "{{ app_dir }}"
 
