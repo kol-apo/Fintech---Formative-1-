@@ -1,0 +1,124 @@
+name: CD
+
+# Deploy to production — triggers only on a merge to main (a direct push to
+# main is exactly what a merged PR produces). Nothing here runs on branches
+# or pull requests; that's ci.yml's job.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Never run two deploys against the same VM at once — queue instead of race.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  # Re-runs the full CI gate (lint, test, npm audit, Trivy, Checkov) as a
+  # pre-deploy check. Belt-and-suspenders: the PR that merged already passed
+  # this, but nothing gets built or deployed unless it passes again here.
+  ci:
+    name: CI checks
+    uses: ./.github/workflows/ci.yml
+
+  build-and-push:
+    name: Build & push image to ECR
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Log in to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Same build context as ci.yml's docker-build job and docker-compose.yml
+      # (momosim/Dockerfile) — the image scanned in CI is the image deployed.
+      - name: Build image
+        run: |
+          docker build \
+            -t ${{ secrets.ECR_REPOSITORY_URL }}:${{ github.sha }} \
+            -t ${{ secrets.ECR_REPOSITORY_URL }}:latest \
+            ./momosim
+
+      - name: Push image
+        run: |
+          docker push ${{ secrets.ECR_REPOSITORY_URL }}:${{ github.sha }}
+          docker push ${{ secrets.ECR_REPOSITORY_URL }}:latest
+
+  deploy:
+    name: Deploy to production via Ansible
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Install Ansible
+        run: pip install --quiet ansible
+
+      # The bastion only allows SSH from named teammate IPs
+      # (terraform/variables.tf: ssh_allowed_cidrs) — GitHub-hosted runners
+      # have no fixed IP, so this run's own IP is opened for exactly the
+      # duration of the deploy and revoked again at the end, rather than
+      # widening SSH to the whole internet.
+      - name: Get runner public IP
+        id: runner_ip
+        run: echo "ip=$(curl -s https://checkip.amazonaws.com)" >> "$GITHUB_OUTPUT"
+
+      - name: Authorize this runner's IP on the bastion security group
+        run: |
+          aws ec2 authorize-security-group-ingress \
+            --group-id ${{ secrets.BASTION_SG_ID }} \
+            --protocol tcp --port 22 \
+            --cidr ${{ steps.runner_ip.outputs.ip }}/32
+
+      - name: Write SSH private key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          printf '%s\n' "$SSH_PRIVATE_KEY" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+
+      # App server has no public IP — reached via the bastion as an SSH jump
+      # host, same ProxyCommand pattern as terraform's ansible_inventory_snippet
+      # output.
+      - name: Write runtime inventory
+        run: |
+          cat > /tmp/inventory.ini <<EOF
+          [momosim]
+          ${{ secrets.APP_PRIVATE_IP }} ansible_user=ubuntu ansible_ssh_private_key_file=/tmp/deploy_key ansible_ssh_common_args='-o StrictHostKeyChecking=accept-new -o ProxyCommand="ssh -i /tmp/deploy_key -W %h:%p -o StrictHostKeyChecking=accept-new ubuntu@${{ secrets.BASTION_HOST }}"'
+          EOF
+
+      - name: Run Ansible playbook
+        run: |
+          ansible-playbook -i /tmp/inventory.ini ansible/playbook.yml \
+            --extra-vars "image_uri=${{ secrets.ECR_REPOSITORY_URL }}:${{ github.sha }}" \
+            --extra-vars "ecr_repository_url=${{ secrets.ECR_REPOSITORY_URL }}" \
+            --extra-vars "aws_region=${{ secrets.AWS_REGION }}"
+
+      # Always runs, even if the deploy above failed, so a broken run never
+      # leaves SSH open to this runner's IP.
+      - name: Revoke this runner's IP from the bastion security group
+        if: always()
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --group-id ${{ secrets.BASTION_SG_ID }} \
+            --protocol tcp --port 22 \
+            --cidr ${{ steps.runner_ip.outputs.ip }}/32
