@@ -7,7 +7,7 @@
     app_dir: "/opt/momosim"
     aws_region: "eu-west-1"
     ecr_registry_url: "020262235992.dkr.ecr.eu-west-1.amazonaws.com/momosim-dev"
-    db_password: "MomosimPassword123!"
+    db_password: "[PASSWORD]"
 
   tasks:
     - name: Install required system packages
@@ -42,9 +42,7 @@
         src: templates/docker-compose.yml.j2
         dest: "{{ app_dir }}/docker-compose.yml"
 
-    # No stored registry password: the instance's IAM role (scoped to pull
-    # from exactly this one ECR repository) supplies the credentials behind
-    # the scenes via the instance metadata service.
+
     - name: Log in to ECR
       shell: >
         aws ecr get-login-password --region {{ aws_region }}
