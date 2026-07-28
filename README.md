@@ -36,7 +36,7 @@ Amani Market Systems' MoMoSim replicates the core logic of a mobile money transf
 
 ## Architecture
 
-> **See `docs/architecture.drawio`** — open in [draw.io](https://app.diagrams.net/) or the VS Code Draw.io extension. For guidance on drawing it yourself, see the [Architecture Diagram Guide](#architecture-diagram-guide) at the end of this file.
+> Save the diagram as **`docs/architecture.drawio`** so it renders in the VS Code Draw.io extension and is tracked in the repo. For a full guide on what to draw and how to connect everything, see the [Architecture Diagram Guide](#architecture-diagram-guide) at the end of this file.
 
 ### Infrastructure overview
 
@@ -68,7 +68,7 @@ Internet
 │  │                                                             │ │
 │  │   RDS PostgreSQL 16  (db.t3.micro · 20 GB encrypted)       │ │
 │  │   • Private subnets only — not publicly accessible         │ │
-│  │   • Port 5432, reachable from app server SG only           │ │
+│  │   • Port 5432, reachable from app server SG + bastion SG   │ │
 │  │                                                             │ │
 │  └─────────────────────────────────────────────────────────────┘ │
 │                                                                  │
@@ -100,7 +100,7 @@ GitHub Actions
 |---|---|
 | Bastion | `:22` from team IPs; `:80` from `0.0.0.0/0`; `:22` temp from GitHub runner (CD only, always revoked) |
 | App server | `:3000` from bastion SG; `:22` from bastion SG only |
-| Database | `:5432` from app server SG only |
+| Database | `:5432` from app server SG; `:5432` from bastion SG (SSH-tunnel debugging/migrations) |
 
 ### Cost trade-offs
 
@@ -152,7 +152,7 @@ docker compose down   # stop
 
 ### Deploy to AWS — full engineer walkthrough
 
-**Prerequisites:** Terraform ≥ 1.6, Ansible, AWS CLI configured, SSH key pair at `~/.ssh/momosim`.
+**Prerequisites:** Terraform ≥ 1.5, Ansible, AWS CLI configured, SSH key pair at `~/.ssh/momosim`.
 
 #### Step 1 — Provision infrastructure
 
@@ -182,10 +182,13 @@ terraform output ecr_repository_url        # 020262235992.dkr.ecr.eu-west-1.amaz
 ```bash
 # Paste ansible_inventory_snippet into ansible/inventory.ini
 cd ansible
-ansible-playbook -i inventory.ini playbook.yml
+ansible-playbook -i inventory.ini playbook.yml \
+  --extra-vars "image_uri=020262235992.dkr.ecr.eu-west-1.amazonaws.com/momosim-dev:latest \
+                ecr_repository_url=020262235992.dkr.ecr.eu-west-1.amazonaws.com/momosim-dev \
+                db_password=<your-db-password>"
 ```
 
-The playbook: installs Docker, clones the repo, runs `docker compose up -d --build`, configures UFW (ports 22 + 3000 only), and hardens SSH (no root login, no password auth).
+The playbook: installs Docker and the AWS CLI, renders a `docker-compose.yml` from a Jinja2 template, logs in to ECR using the instance's IAM credentials, pulls the image, starts the container with `docker compose up -d --remove-orphans`, opens UFW ports 22, 80, and 3000, and hardens SSH (no root login, no password auth).
 
 #### Step 3 — Verify
 
@@ -202,7 +205,7 @@ Every merge to `main` triggers `cd.yml`:
 2. **Push to ECR** — builds the image, tags it `:<commit-sha>` and `:latest`, pushes to `020262235992.dkr.ecr.eu-west-1.amazonaws.com/momosim-dev`.
 3. **Deploy** — temporarily adds the runner's IP to the bastion's security group, writes a deploy key and ProxyCommand inventory (runner → bastion → app server), runs the Ansible playbook with the new `image_uri`, then **always** revokes the SG rule — even if the deploy fails.
 
-A concurrency group (`group: production`) prevents two deploys from racing the same VM.
+A concurrency group (`group: production-deploy`) prevents two deploys from racing the same VM.
 
 ---
 
