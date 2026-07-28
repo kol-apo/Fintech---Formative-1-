@@ -1,0 +1,10 @@
+services:
+  momosim:
+    image: "{{ image_uri }}"
+    container_name: momosim
+    ports:
+      - "{{ app_port }}:{{ app_port }}"
+    environment:
+      - PORT={{ app_port }}
+    # Data is in-memory, so a restart resets state — but keep the app up
+    restart: unless-stopped

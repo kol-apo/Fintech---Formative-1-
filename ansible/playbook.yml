@@ -1,0 +1,105 @@
+---
+- name: Configure Server and Deploy MoMoSim
+  hosts: momosim
+  become: true
+
+  vars:
+      app_dir: "/opt/momosim"
+      aws_region: "eu-west-1"
+      ecr_registry_url: "020262235992.dkr.ecr.eu-west-1.amazonaws.com/momosim-dev"
+      ecr_repository_url: "020262235992.dkr.ecr.eu-west-1.amazonaws.com/momosim-dev"
+      image_uri: "020262235992.dkr.ecr.eu-west-1.amazonaws.com/momosim-dev:latest"
+      app_port: 3000
+
+  tasks:
+    - name: Install required system packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - awscli
+        state: present
+        update_cache: yes
+
+    - name: Install Docker and Docker Compose
+      apt:
+        name:
+          - docker.io
+          - docker-compose-v2
+        state: present
+
+    - name: Remove existing app directory if present
+      file:
+        path: "{{ app_dir }}"
+        state: absent
+
+    - name: Ensure app directory exists
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+
+    - name: Render production docker-compose.yml
+      template:
+        src: templates/docker-compose.yml.j2
+        dest: "{{ app_dir }}/docker-compose.yml"
+
+
+    - name: Log in to ECR
+      shell: >
+        aws ecr get-login-password --region {{ aws_region }}
+        | docker login --username AWS --password-stdin {{ ecr_repository_url }}
+      changed_when: false
+
+    - name: Pull the latest image
+      command: docker compose pull
+      args:
+        chdir: "{{ app_dir }}"
+
+    - name: Restart the service with the new image
+      command: docker compose up -d --remove-orphans
+      args:
+        chdir: "{{ app_dir }}"
+        
+    - name: UFW - Allow port 22 (SSH)
+      ufw:
+        rule: allow
+        port: '22'
+        proto: tcp
+
+    - name: UFW - Allow port 80 (HTTP)
+      ufw:
+        rule: allow
+        port: '80'
+        proto: tcp
+
+    - name: UFW - Allow port 3000 (App)
+      ufw:
+        rule: allow
+        port: '3000'
+        proto: tcp
+
+    - name: UFW - Enable firewall with default deny
+      ufw:
+        state: enabled
+        policy: deny
+
+    - name: Hardening - Disable root login
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PermitRootLogin'
+        line: 'PermitRootLogin no'
+      notify: Restart SSH
+
+    - name: Hardening - Disable password authentication
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+      notify: Restart SSH
+
+  handlers:
+    - name: Restart SSH
+      service:
+        name: ssh
+        state: restarted

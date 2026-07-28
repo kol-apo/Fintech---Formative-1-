@@ -1,0 +1,44 @@
+# =============================================================================
+# Copy this file to terraform.tfvars and fill in your own values.
+# terraform.tfvars is gitignored — real values never get committed.
+# =============================================================================
+
+project_name = "momosim"
+environment  = "dev"
+aws_region   = "eu-west-1"
+
+# Which profile in ~/.aws/credentials holds the TEAM account's keys.
+# Keeps team credentials clearly separated from any personal AWS account.
+# (Skipped entirely if secrets.auto.tfvars supplies keys directly.)
+aws_profile = "momosim-team"
+
+# --- Network -----------------------------------------------------------------
+# Two private subnets because the RDS subnet group spans two AZs.
+vpc_cidr             = "10.0.0.0/16"
+public_subnet_cidrs  = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnet_cidrs = ["10.0.11.0/24", "10.0.12.0/24"]
+
+# --- Compute -----------------------------------------------------------------
+# t3.micro = cheapest micro in eu-west-1 (the team account is on the
+# credits-based FREE plan — see variables.tf and README "Costs & credits")
+instance_type         = "t3.micro"
+bastion_instance_type = "t3.micro"
+app_port              = 3000
+
+# REQUIRED — one CIDR per team member who needs SSH access to the bastion.
+# Find your own public IP at https://checkip.amazonaws.com
+ssh_allowed_cidrs = [
+  "203.0.113.10/32", # you
+]
+
+# Path to the PUBLIC half of the key pair you generated with:
+#   ssh-keygen -t ed25519 -f ~/.ssh/momosim
+ssh_public_key_path = "~/.ssh/momosim.pub"
+
+# --- Database ----------------------------------------------------------------
+# The password does NOT go here — put db_password in secrets.auto.tfvars
+# (see secrets.auto.tfvars.example).
+db_name           = "momosim"
+db_username       = "momosim"
+db_instance_class = "db.t3.micro"
+db_engine_version = "16"

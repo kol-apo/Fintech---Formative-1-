@@ -1,0 +1,16 @@
+# Local Terraform state — contains resource details and possibly secrets
+*.tfstate
+*.tfstate.*
+
+# Provider binaries and module cache
+# (note: .terraform.lock.hcl SHOULD be committed — it pins provider versions)
+.terraform/
+
+# Real variable values (the .example file IS committed)
+*.tfvars
+!*.tfvars.example
+
+# Crash logs and saved plans
+crash.log
+crash.*.log
+*.tfplan
