@@ -29,11 +29,10 @@
           - docker-compose
         state: present
 
-    - name: Start and enable Docker service
-      service:
-        name: docker
-        state: started
-        enabled: yes
+    - name: Remove existing app directory if present
+      file:
+        path: "{{ app_dir }}"
+        state: absent
 
     - name: Clone application repository
       git:
@@ -41,7 +40,7 @@
         dest: "{{ app_dir }}"
         version: main
         force: yes
-
+        
     - name: Authenticate Docker to AWS ECR
       shell: |
         aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ ecr_registry_url }}
