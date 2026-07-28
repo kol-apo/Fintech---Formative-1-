@@ -60,10 +60,7 @@
       command: docker compose up -d --remove-orphans
       args:
         chdir: "{{ app_dir }}"
-      environment:
-        ECR_REGISTRY_URL: "{{ ecr_registry_url }}"
-        DB_PASSWORD: "{{ db_password }}"
-
+        
     - name: UFW - Allow port 22 (SSH)
       ufw:
         rule: allow
