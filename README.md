@@ -36,7 +36,62 @@ Amani Market Systems' MoMoSim replicates the core logic of a mobile money transf
 
 ## Architecture
 
-> Save the diagram as **`docs/architecture.drawio`** so it renders in the VS Code Draw.io extension and is tracked in the repo. For a full guide on what to draw and how to connect everything, see the [Architecture Diagram Guide](#architecture-diagram-guide) at the end of this file.
+```mermaid
+graph LR
+    subgraph external[" "]
+        Developer[Developer]
+        GitHub[GitHub]
+        GitHubActions[GitHub Actions]
+        EndUsers[End Users]
+    end
+
+    subgraph aws["AWS Region: eu-west-1"]
+        subgraph vpc["VPC 10.0.0.0/16"]
+            IGW[Internet Gateway]
+            subgraph publicSubnet["PUBLIC Subnet"]
+                BastionHost[Bastion Host<br/>Public IP · NAT · DNAT :80 to :3000]
+            end
+            subgraph privateSubnet["PRIVATE Subnet"]
+                AppServer[Application Server<br/>EC2 + Docker :3000]
+                RDS[(RDS PostgreSQL)]
+            end
+        end
+        ECR[(ECR Registry<br/>momosim-dev)]
+    end
+
+    Developer -->|opens PR| GitHub
+    GitHub -->|triggers| GitHubActions
+    GitHubActions -->|CI: lint, tests<br/>audit, Trivy, Checkov| GitHub
+    GitHub -->|merge to main| GitHubActions
+    GitHubActions -->|CD: build & push| ECR
+    GitHubActions -->|CD: run Ansible<br/>via SSH jump| BastionHost
+    BastionHost -->|SSH tunnel| AppServer
+    AppServer -->|pull image| ECR
+    AppServer -->|query/update| RDS
+    EndUsers -->|HTTP| IGW
+    IGW -->|:80| BastionHost
+    BastionHost -->|DNAT :80 to :3000| AppServer
+
+    classDef developer fill:#eef2ff,stroke:#818cf8
+    classDef github fill:#f0fdf4,stroke:#4ade80
+    classDef awsExternal fill:#fff7ed,stroke:#fb923c
+    classDef vpc fill:#f0f9ff,stroke:#38bdf8
+    classDef publicNet fill:#fef2f2,stroke:#f87171
+    classDef privateNet fill:#f5f3ff,stroke:#a78bfa
+    classDef compute fill:#ecfeff,stroke:#22d3ee
+    classDef storage fill:#fefce8,stroke:#facc15
+
+    class Developer developer
+    class GitHub,GitHubActions github
+    class EndUsers awsExternal
+    class vpc vpc
+    class publicSubnet publicNet
+    class privateSubnet privateNet
+    class BastionHost,AppServer compute
+    class ECR,RDS storage
+```
+
+*High-level view. The detailed topology, traffic paths, and security groups are broken down below.*
 
 ### Infrastructure overview
 
