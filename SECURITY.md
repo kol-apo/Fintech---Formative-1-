@@ -24,7 +24,7 @@ alone.
 A dedicated `dependency-scan` job inside `.github/workflows/ci.yml`. It runs on
 every pull request targeting `main`, after the lint-and-test job passes.
 
-### Settings
+### Setting
 The job has two steps: a non-blocking report (`npm audit`, prints every advisory
 for visibility) and a gate that runs `npm audit --audit-level=high --omit=dev`.
 This means:
